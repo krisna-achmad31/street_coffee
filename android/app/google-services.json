@@ -1,0 +1,91 @@
+{
+  "project_info": {
+    "project_number": "388763648712",
+    "firebase_url": "https://street-coffee-default-rtdb.firebaseio.com",
+    "project_id": "street-coffee",
+    "storage_bucket": "street-coffee.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:388763648712:android:441f90e664bfee150b9bfd",
+        "android_client_info": {
+          "package_name": "com.streetcoffee.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "388763648712-6bslaoi5p8uku61j5nbb15ge64tn13vp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZuPaGA-emPjdb_RkCZqKqZ444Z0OLoT4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "388763648712-6bslaoi5p8uku61j5nbb15ge64tn13vp.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "388763648712-8hvd3u4i1o7m54hnkf2nc8bo4dfa9lml.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.streetcoffee.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:388763648712:android:fb83f9eb1389740f0b9bfd",
+        "android_client_info": {
+          "package_name": "com.streetcoffee.app.street_coffees"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "388763648712-et7nthft3093va43bv3ru52ompi6s7be.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.streetcoffee.app.street_coffees",
+            "certificate_hash": "6c4147be69cf2c6aaea61481ee555c0c2138d767"
+          }
+        },
+        {
+          "client_id": "388763648712-6bslaoi5p8uku61j5nbb15ge64tn13vp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZuPaGA-emPjdb_RkCZqKqZ444Z0OLoT4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "388763648712-6bslaoi5p8uku61j5nbb15ge64tn13vp.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "388763648712-8hvd3u4i1o7m54hnkf2nc8bo4dfa9lml.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.streetcoffee.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

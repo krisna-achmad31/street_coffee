@@ -1,0 +1,24 @@
+{
+  "rules": {
+    "presence": {
+      "shops": {
+        "$shopId": {
+          // Public read (real-time isOpen status)
+          ".read": true,
+          // Only admin can write
+          ".write": "auth != null && auth.uid === 'REPLACE_WITH_YOUR_FIREBASE_UID'"
+        }
+      }
+    },
+    "counters": {
+      "comments": {
+        "$shopId": {
+          // Public read
+          ".read": true,
+          // Any authenticated user can increment (addComment triggers this)
+          ".write": "auth != null"
+        }
+      }
+    }
+  }
+}

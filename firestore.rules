@@ -1,0 +1,31 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Coffee shops — public read, admin-only write
+    match /coffee_shops/{shopId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null
+        && request.auth.uid == 'REPLACE_WITH_YOUR_FIREBASE_UID';
+
+      // Comments subcollection
+      match /comments/{commentId} {
+        // Public read
+        allow read: if true;
+
+        // Any authenticated user can create
+        allow create: if request.auth != null
+          && request.resource.data.userId == request.auth.uid;
+
+        // Owner or admin can delete
+        allow delete: if request.auth != null
+          && (resource.data.userId == request.auth.uid
+            || request.auth.uid == 'REPLACE_WITH_YOUR_FIREBASE_UID');
+
+        // No edits after posting
+        allow update: if false;
+      }
+    }
+  }
+}
