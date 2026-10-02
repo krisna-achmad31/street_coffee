@@ -8,6 +8,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data/datasources/admin_shop_datasource.dart';
+import 'data/demo/demo_social_repository.dart';
 import 'data/datasources/auth_remote_datasource.dart';
 import 'data/datasources/coffee_shop_remote_datasource.dart';
 import 'data/datasources/comment_remote_datasource.dart';
@@ -86,7 +87,10 @@ Future<void> initDependencies() async {
   );
 
   sl.registerLazySingleton<SocialRepository>(
-        () => SocialRepositoryImpl(firestore: sl(), storage: sl()),
+        () {
+      final real = SocialRepositoryImpl(firestore: sl(), storage: sl());
+      return DemoSocialRepository.enabled ? DemoSocialRepository(real) : real;
+    },
   );
   sl.registerLazySingleton<CommerceRepository>(
         () => CommerceRepositoryImpl(firestore: sl(), functions: sl(), prefs: sl()),

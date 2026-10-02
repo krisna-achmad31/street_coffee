@@ -201,7 +201,7 @@ class ConnectedDropTicket extends StatelessWidget {
           onShare: () => SharePlus.instance.share(ShareParams(
               text:
                   '${drop.userHandle} nge-Drop di ${drop.shopName} ☕ — cek di Street Coffee')),
-          onShop: drop.shopId.isEmpty
+          onShop: drop.shopId.isEmpty || isDemoId(drop.shopId)
               ? null
               : () => context.push('${AppRouter.detail}/${drop.shopId}'),
           onMore: uid == null
@@ -306,7 +306,9 @@ class _LiveRow extends StatelessWidget {
       );
 
   Widget _liveCard(BuildContext context, LiveCheckin l) => GestureDetector(
-        onTap: () => context.push('${AppRouter.detail}/${l.shopId}'),
+        onTap: () => isDemoId(l.shopId)
+            ? showAppSnack(context, 'Kedai demo — belum ada halaman detail.')
+            : context.push('${AppRouter.detail}/${l.shopId}'),
         child: Container(
           width: 150,
           padding: const EdgeInsets.all(10),

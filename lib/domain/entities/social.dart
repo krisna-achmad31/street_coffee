@@ -1,5 +1,8 @@
 import 'package:equatable/equatable.dart';
 
+/// Ids minted by the in-memory demo feed (debug builds); never in Firestore.
+bool isDemoId(String id) => id.startsWith('demo_');
+
 /// A check-in post: photo + receipt (shop, item, rating, vibe) + caption.
 class Drop extends Equatable {
   final String id;

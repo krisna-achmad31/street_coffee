@@ -83,6 +83,17 @@ flutter pub get
 flutter run
 ```
 
+**Demo live feed.** Di build debug, Feed otomatis diisi data dummy yang "hidup"
+(`lib/data/demo/`): Cheers & komentar bertambah, orang keluar-masuk kedai di
+"Lagi di kedai sekarang", dan Drop baru muncul tiap ~20 detik. Data asli dari
+Firestore tetap digabung; kalau Firestore gagal, Feed jatuh ke data demo saja.
+Interaksi pada konten demo (id `demo_…`) hanya disimpan di memori.
+
+```bash
+flutter run --dart-define=DEMO_FEED=false          # matikan di debug
+flutter run --release --dart-define=DEMO_FEED=true # nyalakan untuk demo release
+```
+
 ## Test
 
 ```bash
