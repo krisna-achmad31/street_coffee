@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:dartz/dartz.dart';
 import '../../core/utils/failures.dart';
-import '../entities/coffee_shop.dart';
 
 abstract class AdminShopRepository {
   /// Create new shop — uploads cover photo & menu photos to Storage,

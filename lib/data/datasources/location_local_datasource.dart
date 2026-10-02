@@ -1,6 +1,7 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/utils/failures.dart';
 import '../../domain/entities/user_location.dart';
 
 abstract class LocationLocalDataSource {
@@ -23,21 +24,43 @@ class LocationLocalDataSourceImpl implements LocationLocalDataSource {
 
   @override
   Future<UserLocation> getCurrentLocation() async {
-    // Check permission
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      throw const LocationFailure(
+          'GPS kamu mati. Nyalakan lokasi atau pilih area secara manual.',
+          LocationIssue.serviceDisabled);
+    }
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
     if (permission == LocationPermission.deniedForever) {
-      throw Exception('Location permission permanently denied');
+      throw const LocationFailure(
+          'Izin lokasi diblokir. Buka pengaturan untuk mengizinkan, atau pilih area manual.',
+          LocationIssue.permissionDeniedForever);
+    }
+    if (permission == LocationPermission.denied) {
+      throw const LocationFailure(
+          'Izinkan akses lokasi supaya kami bisa cari kedai terdekat.',
+          LocationIssue.permissionDenied);
     }
 
-    final position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 10),
-      ),
-    );
+    Position position;
+    try {
+      position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+    } catch (_) {
+      // Timeout indoors is common; a recent fix is good enough for "nearby".
+      final last = await Geolocator.getLastKnownPosition();
+      if (last == null) {
+        throw const LocationFailure(
+            'Lokasi belum ketemu. Coba lagi di tempat terbuka atau pilih area manual.');
+      }
+      position = last;
+    }
 
     // Try to get city name
     String? city;
@@ -66,13 +89,13 @@ class LocationLocalDataSourceImpl implements LocationLocalDataSource {
   @override
   Future<UserLocation> getLocationFromAddress(String address) async {
     final locations = await locationFromAddress(address);
-    if (locations.isEmpty) throw Exception('Address not found');
+    if (locations.isEmpty) throw const NotFoundFailure('Alamat tidak ditemukan');
 
     final loc = locations.first;
     final placemarks = await placemarkFromCoordinates(
       loc.latitude,
       loc.longitude,
-    );
+    ).catchError((_) => <Placemark>[]);
 
     String? city;
     String? district;
@@ -116,6 +139,7 @@ class LocationLocalDataSourceImpl implements LocationLocalDataSource {
     final lat = prefs.getDouble(_latKey);
     final lng = prefs.getDouble(_lngKey);
     if (lat == null || lng == null) return null;
+    if (lat.abs() > 90 || lng.abs() > 180 || (lat == 0 && lng == 0)) return null;
 
     return UserLocation(
       latitude: lat,

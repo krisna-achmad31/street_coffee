@@ -14,9 +14,13 @@ class UserLocation extends Equatable {
   });
 
   String get displayName {
-    if (districtName != null) return districtName!;
-    if (cityName != null) return cityName!;
-    return '${latitude.toStringAsFixed(4)}, ${longitude.toStringAsFixed(4)}';
+    // Geocoders often return "" rather than null for unknown parts.
+    final district = districtName?.trim() ?? '';
+    final city = cityName?.trim() ?? '';
+    if (district.isNotEmpty) return district;
+    if (city.isNotEmpty) return city;
+    // Geocoding found no area name (common outside Indonesia).
+    return 'Lokasi kamu';
   }
 
   @override

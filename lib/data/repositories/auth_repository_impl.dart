@@ -20,8 +20,8 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       final user = await remoteDataSource.signInWithGoogle();
       return Right(user);
-    } on Exception catch (e) {
-      return Left(ServerFailure(e.toString()));
+    } catch (e) {
+      return Left(Failure.from(e, 'Gagal masuk. Coba lagi.'));
     }
   }
 
@@ -30,8 +30,8 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       await remoteDataSource.signOut();
       return const Right(null);
-    } on Exception catch (e) {
-      return Left(ServerFailure(e.toString()));
+    } catch (e) {
+      return Left(Failure.from(e, 'Gagal keluar. Coba lagi.'));
     }
   }
 }

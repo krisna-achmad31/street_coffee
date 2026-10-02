@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -15,11 +16,16 @@ import 'data/repositories/admin_shop_repository_impl.dart';
 import 'data/repositories/auth_repository_impl.dart';
 import 'data/repositories/coffee_shop_repository_impl.dart';
 import 'data/repositories/comment_repository_impl.dart';
+import 'data/repositories/commerce_repository_impl.dart';
+import 'data/repositories/social_repository_impl.dart';
+import 'data/services/street_pass_billing.dart';
 import 'data/repositories/location_repository_impl.dart';
 import 'domain/repositories/admin_shop_repository.dart';
 import 'domain/repositories/auth_repository.dart';
 import 'domain/repositories/coffee_shop_repository.dart';
 import 'domain/repositories/comment_repository.dart';
+import 'domain/repositories/commerce_repository.dart';
+import 'domain/repositories/social_repository.dart';
 import 'domain/repositories/location_repository.dart';
 import 'domain/usecases/coffee_shop_usecases.dart';
 import 'domain/usecases/location_usecases.dart';
@@ -39,6 +45,8 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton<FirebaseAuth>(() => FirebaseAuth.instance);
   sl.registerLazySingleton<FirebaseStorage>(() => FirebaseStorage.instance);
   sl.registerLazySingleton<FirebaseDatabase>(() => FirebaseDatabase.instance);
+  sl.registerLazySingleton<FirebaseFunctions>(
+      () => FirebaseFunctions.instanceFor(region: 'asia-southeast2'));
 
   // google_sign_in hanya untuk signOut
   final googleSignIn = GoogleSignIn.instance;
@@ -75,6 +83,16 @@ Future<void> initDependencies() async {
   );
   sl.registerLazySingleton<AdminShopRepository>(
         () => AdminShopRepositoryImpl(dataSource: sl()),
+  );
+
+  sl.registerLazySingleton<SocialRepository>(
+        () => SocialRepositoryImpl(firestore: sl(), storage: sl()),
+  );
+  sl.registerLazySingleton<CommerceRepository>(
+        () => CommerceRepositoryImpl(firestore: sl(), functions: sl(), prefs: sl()),
+  );
+  sl.registerLazySingleton<StreetPassBilling>(
+        () => StreetPassBilling(functions: sl())..start(),
   );
 
   sl.registerLazySingleton(() => GetNearbyShops(sl()));

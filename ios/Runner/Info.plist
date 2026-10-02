@@ -66,5 +66,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Lokasi dipakai untuk mengurutkan kedai terdekat dan memverifikasi check-in Drop kamu.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Kamera dipakai untuk memotret Drop di kedai.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Akses galeri dipakai untuk memilih foto Drop dan foto kedai.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Dipakai untuk menyimpan share card Drop ke galeri.</string>
 </dict>
 </plist>

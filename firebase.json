@@ -1,1 +1,46 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"street-coffee","appId":"1:388763648712:android:fb83f9eb1389740f0b9bfd","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"street-coffee","configurations":{"android":"1:388763648712:android:fb83f9eb1389740f0b9bfd","ios":"1:388763648712:ios:762736f7d1ee318b0b9bfd"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "street-coffee",
+          "appId": "1:388763648712:android:fb83f9eb1389740f0b9bfd",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "street-coffee",
+          "configurations": {
+            "android": "1:388763648712:android:fb83f9eb1389740f0b9bfd",
+            "ios": "1:388763648712:ios:762736f7d1ee318b0b9bfd"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "database": {
+    "rules": "database.rules.json"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "*.log"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ]
+}

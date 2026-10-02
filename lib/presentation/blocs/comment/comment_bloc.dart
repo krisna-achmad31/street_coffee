@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../core/utils/failures.dart';
 import '../../../domain/entities/comment.dart';
 import '../../../domain/repositories/comment_repository.dart';
+import '../transformers.dart';
 
 // Events
 abstract class CommentEvent extends Equatable {
@@ -47,13 +49,6 @@ class CommentDelete extends CommentEvent {
   List<Object?> get props => [shopId, commentId];
 }
 
-class _CommentsUpdated extends CommentEvent {
-  final List<Comment> comments;
-  const _CommentsUpdated(this.comments);
-  @override
-  List<Object?> get props => [comments];
-}
-
 // States
 abstract class CommentState extends Equatable {
   const CommentState();
@@ -81,32 +76,28 @@ class CommentError extends CommentState {
 // BLoC
 class CommentBloc extends Bloc<CommentEvent, CommentState> {
   final CommentRepository _repository;
-  StreamSubscription<List<Comment>>? _subscription;
 
   CommentBloc({required CommentRepository repository})
       : _repository = repository,
         super(CommentInitial()) {
-    on<CommentWatch>(_onWatch);
+    on<CommentWatch>(_onWatch, transformer: restartable);
     on<CommentAdd>(_onAdd);
     on<CommentDelete>(_onDelete);
-    on<_CommentsUpdated>(_onUpdated);
   }
 
   Future<void> _onWatch(CommentWatch event, Emitter<CommentState> emit) async {
     emit(CommentLoading());
-    _subscription?.cancel();
-    _subscription = _repository.watchComments(event.shopId).listen(
-      (comments) => add(_CommentsUpdated(comments)),
-      onError: (e) => emit(CommentError(e.toString())),
+    // emit.forEach keeps emitting legal for the stream's lifetime; the old
+    // listen(onError: emit) threw because the handler had already completed.
+    await emit.forEach<List<Comment>>(
+      _repository.watchComments(event.shopId),
+      onData: CommentLoaded.new,
+      onError: (e, _) => CommentError(Failure.from(e, 'Review gagal dimuat.').message),
     );
   }
 
-  void _onUpdated(_CommentsUpdated event, Emitter<CommentState> emit) {
-    emit(CommentLoaded(event.comments));
-  }
-
   Future<void> _onAdd(CommentAdd event, Emitter<CommentState> emit) async {
-    await _repository.addComment(
+    final r = await _repository.addComment(
       shopId: event.shopId,
       userId: event.userId,
       userName: event.userName,
@@ -114,20 +105,27 @@ class CommentBloc extends Bloc<CommentEvent, CommentState> {
       text: event.text,
       rating: event.rating,
     );
-    // Stream auto-updates via _CommentsUpdated
+    // Success arrives through the watch stream; failures go to the UI once.
+    r.fold((f) => _failures.add(f.message), (_) {});
   }
 
   Future<void> _onDelete(
       CommentDelete event, Emitter<CommentState> emit) async {
-    await _repository.deleteComment(
+    final r = await _repository.deleteComment(
       shopId: event.shopId,
       commentId: event.commentId,
     );
+    r.fold((f) => _failures.add(f.message), (_) {});
   }
+
+  /// One-shot write errors (add/delete) — shown as a snackbar, without
+  /// replacing the loaded list with an error state.
+  final _failures = StreamController<String>.broadcast();
+  Stream<String> get failures => _failures.stream;
 
   @override
   Future<void> close() {
-    _subscription?.cancel();
+    _failures.close();
     return super.close();
   }
 }

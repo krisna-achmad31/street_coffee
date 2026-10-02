@@ -1,31 +1,156 @@
 rules_version = '2';
 
+// Street Coffee v2. Counters, stamps, memberships, redemptions and
+// notifications are written only by Cloud Functions (Admin SDK bypasses rules).
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Coffee shops — public read, admin-only write
+    function signedIn() { return request.auth != null; }
+    function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
+    // Same uid as lib/core/constants/admin_config.dart.
+    function isAdmin() { return signedIn() && request.auth.uid == 'uSR6zFYKnSOMzlTYLNURchYQTw43'; }
+    function shop(shopId) { return get(/databases/$(database)/documents/coffee_shops/$(shopId)).data; }
+    function isOwner(shopId) { return signedIn() && shop(shopId).get('ownerUid', '') == request.auth.uid; }
+    function validPromo(d) {
+      return d.fundedBy == 'shop' && d.usage.size() == 0 && d.dailyQuota > 0
+        && d.memberOnly is bool
+        && (d.type == 'freeItem' || (d.promoPrice > 0 && d.promoPrice < d.normalPrice));
+    }
+    function onlyChanges(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    // ── Shops ──────────────────────────────────────────────────────────────
     match /coffee_shops/{shopId} {
       allow read: if true;
-      allow create, update, delete: if request.auth != null
-        && request.auth.uid == 'REPLACE_WITH_YOUR_FIREBASE_UID';
+      allow create, delete: if isAdmin();
+      // Owners edit their listing, never ownership, tier, partner or rating.
+      allow update: if isAdmin() || (isOwner(shopId) && onlyChanges([
+        'description', 'menuFavorites', 'openFrom', 'openUntil', 'isOpen',
+        'galleryUrls', 'imageUrl', 'instagramUrl', 'tiktokUrl', 'googleMapsUrl',
+        'whatsappNumber', 'facilities', 'vibes', 'vibe', 'priceRange',
+        'minPrice', 'maxPrice']));
 
-      // Comments subcollection
       match /comments/{commentId} {
-        // Public read
         allow read: if true;
-
-        // Any authenticated user can create
-        allow create: if request.auth != null
-          && request.resource.data.userId == request.auth.uid;
-
-        // Owner or admin can delete
-        allow delete: if request.auth != null
-          && (resource.data.userId == request.auth.uid
-            || request.auth.uid == 'REPLACE_WITH_YOUR_FIREBASE_UID');
-
-        // No edits after posting
+        allow create: if signedIn() && request.resource.data.userId == request.auth.uid
+          && request.resource.data.text is string && request.resource.data.text.size() <= 1000;
+        allow delete: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
         allow update: if false;
       }
+
+      match /followers/{uid} {
+        allow read: if true;
+        allow create, delete: if isSelf(uid);
+      }
+
+      // Monthly Regulars leaderboard — functions only.
+      match /{regulars}/{uid} {
+        allow read: if regulars.matches('regulars_[0-9]{6}');
+      }
+
+      // Owner dashboard counters. Anyone may bump views/leads (they are
+      // estimates); only functions touch drops/redemptions/hours/menu.
+      match /stats/{day} {
+        allow read: if isOwner(shopId) || isAdmin();
+        allow create: if request.resource.data.keys().hasOnly(['day', 'views', 'waLeads'])
+          || (isOwner(shopId) && request.resource.data.keys().hasOnly(['day', 'convertedLeads']));
+        allow update: if onlyChanges(['views', 'waLeads'])
+          || (isOwner(shopId) && onlyChanges(['convertedLeads']));
+      }
+
+      // WhatsApp attribution leads (one per visitor/shop/day).
+      match /leads/{code} {
+        allow read: if isOwner(shopId) || isAdmin();
+        allow create: if request.resource.data.converted == false
+          && request.resource.data.code == code
+          && (request.resource.data.uid == null || isSelf(request.resource.data.uid));
+        allow update: if (isOwner(shopId) || isAdmin())
+          && onlyChanges(['converted', 'convertedAt'])
+          && request.resource.data.converted == true;
+      }
+    }
+
+    // ── Users & social ─────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if true;
+      allow create: if isSelf(uid)
+        && request.resource.data.dropsCount == 0
+        && request.resource.data.stampsCount == 0
+        && !('passUntil' in request.resource.data);
+      allow update: if isSelf(uid) && onlyChanges(['handle', 'bio', 'displayName', 'photoUrl']);
+
+      match /stamps/{shopId} { allow read: if true; }
+      match /notifications/{id} {
+        allow read: if isSelf(uid);
+        allow update: if isSelf(uid) && onlyChanges(['read']);
+      }
+      match /wants/{shopId} { allow read, write: if isSelf(uid); }
+      match /blocked/{other} { allow read, write: if isSelf(uid); }
+      match /followers/{follower} {
+        allow read: if true;
+        allow create, delete: if isSelf(follower);
+      }
+    }
+
+    match /drops/{dropId} {
+      // "Tunda lokasi": others only see a Drop after publishAt.
+      allow read: if (resource.data.hidden == false && resource.data.publishAt <= request.time)
+        || (signedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.cheersCount == 0
+        && request.resource.data.commentCount == 0
+        && request.resource.data.stampNumber == 0
+        && request.resource.data.hidden == false
+        && request.resource.data.caption.size() <= 280
+        && request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
+      allow update: if isAdmin() && onlyChanges(['hidden']);
+      allow delete: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      match /cheers/{uid} {
+        allow read: if true;
+        allow create, delete: if isSelf(uid);
+      }
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if signedIn() && request.resource.data.userId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 500;
+        allow delete: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      }
+    }
+
+    match /reports/{id} {
+      allow create: if signedIn() && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.status == 'open';
+      allow read, update: if isAdmin();
+    }
+
+    // ── Commerce ───────────────────────────────────────────────────────────
+    match /promos/{promoId} {
+      allow read: if true;
+      // Discount is always funded by the shop; usage is server-maintained.
+      allow create: if isOwner(request.resource.data.shopId) && validPromo(request.resource.data);
+      allow update: if isOwner(resource.data.shopId) && onlyChanges(['endAt', 'dailyQuota']);
+      allow delete: if isAdmin();
+    }
+
+    match /redeem_intents/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+    }
+
+    match /memberships/{uid} { allow read: if isSelf(uid); }
+
+    match /redemptions/{id} { allow read: if isAdmin(); }
+
+    match /revenue_share/{month} {
+      allow read: if isAdmin();
+      match /shops/{shopId} { allow read: if isOwner(shopId) || isAdmin(); }
+    }
+
+    match /shop_claims/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow read, update: if isAdmin();
     }
   }
 }

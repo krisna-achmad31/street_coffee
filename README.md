@@ -1,135 +1,104 @@
 # Street Coffee ☕
-> Flutter + Firebase (Firestore + RTDB + Storage) + OSM
 
-## Architecture
+> Flutter + Firebase (Firestore, RTDB, Storage, Auth, Cloud Functions) + OSM
+
+Direktori kedai kopi skena + lapisan sosial (Drop, paspor, Cheers) + monetisasi
+(Street Pass untuk user, Kedai Pro untuk pemilik kedai).
+
+- Desain: [`design/street_coffee.pen`](design/street_coffee.pen) (pen.dev) · spec: [`DESIGN.md`](DESIGN.md)
+- PRD & roadmap: dokumen "Street Coffee — PRD & Roadmap"
+
+## Arsitektur
 
 ```
 lib/
 ├── core/
-│   ├── constants/    AppColors, AppTextStyles, AdminConfig, FirebasePaths
-│   ├── theme/        AppTheme (dark)
-│   ├── router/       GoRouter (all routes)
-│   └── utils/        Failures, UseCase base, WhatsAppLauncher
-│
-├── domain/           Pure Dart — zero Flutter/Firebase deps
-│   ├── entities/     CoffeeShop, UserLocation, AppUser, Comment
-│   ├── repositories/ Contracts (auth, shop, location, comment, admin)
-│   └── usecases/     GetNearbyShops, SearchShops, GetCurrentLocation...
-│
+│   ├── constants/  AppColors (token v2), AppTextStyles (Syne/Inter/Space Mono), FirebasePaths
+│   ├── router/     GoRouter — StatefulShellRoute 4 tab + tombol Drop
+│   └── utils/      RedeemCode, AttributionCode, WhatsAppLauncher, Fmt
+├── domain/
+│   ├── entities/   CoffeeShop, social.dart (Drop, Stamp, UserProfile, PassportLevel…),
+│   │               commerce.dart (Promo, RedeemResult, Membership, ShopInsights)
+│   └── repositories/ kontrak (shop, auth, comment, social, commerce)
 ├── data/
-│   ├── datasources/  Firebase Auth+Google, Firestore, RTDB, Storage, Geolocator
-│   ├── models/       CoffeeShopModel, CommentModel
-│   └── repositories/ Impls with Haversine sort + Either<Failure, T>
-│
-├── presentation/
-│   ├── blocs/        AuthBloc, ExploreBloc, DetailBloc, LocationBloc,
-│   │                 CommentBloc, AdminBloc
-│   ├── pages/        Splash, Home, ExploreList, Detail, PickLocation,
-│   │                 Login, AddEditShop (admin form)
-│   └── widgets/      FeaturedCard, NearbyCard, VibeChip, CommentSection...
-│
-├── injection_container.dart   GetIt DI
-└── main.dart                  Firebase init + MultiBlocProvider
+│   ├── repositories/ *_impl — Firestore; SocialRepositoryImpl, CommerceRepositoryImpl
+│   └── services/   StreetPassBilling (in_app_purchase → verifyPassPurchase)
+└── presentation/
+    ├── pages/      home, explore (list ⇄ peta), detail, social/, commerce/, profile, …
+    └── widgets/    ui/ (buttons, chips, receipt: Perforation/StampSeal), cards/ (ShopCard,
+                    FeaturedCard, DropTicket), sheets/ (konfirmasi WA), app_tab_bar
+
+functions/          Cloud Functions (TypeScript, region asia-southeast2)
+├── src/redeem.ts         redeemPromo — validasi kode kasir (kode berputar 30 dtk)
+├── src/revenue_share.ts  settleRevenueShare — tiap tgl 1, 20% pool Pass ke kedai partner
+├── src/social.ts         verifikasi GPS Drop, stempel paspor, Regulars, counter, notifikasi
+├── src/billing.ts        verifyPassPurchase — cek token Google Play sebelum aktifkan member
+└── rules-test/           test security rules (emulator)
 ```
 
-## Firebase Services Used (All Free Tier)
+### Tiga mekanisme bisnis inti
 
-| Service | Usage | Free Limit |
+| Mekanisme | Klien | Server |
 |---|---|---|
-| **Firestore** | Shop data + comments | 1GB, 50k reads/day |
-| **Firebase Storage** | Shop photos + menu photos | 5GB, 1GB/day download |
-| **RTDB** | Real-time isOpen status, comment counter | 1GB, 10GB/month |
-| **Firebase Auth** | Google Sign-In | Unlimited |
+| **Redeem promo di kasir** | `UsePromoPage` menampilkan kode 6 karakter (HMAC, berganti tiap 30 dtk) + QR; `CashierPage` untuk staf | `redeemPromo` mencocokkan kode dengan member yang membuka promo di kedai itu ≤ 2 menit terakhir, cek kuota & 1×/hari, catat `redemptions` |
+| **Diskon ditanggung kedai + bagi hasil** | `CreatePromoPage` (`fundedBy: 'shop'` wajib oleh rules) | `settleRevenueShare` membagi 20% pendapatan bersih Pass ke kedai sesuai jumlah redeem |
+| **Atribusi WA** | Setiap pesan WA diberi `(kode: SC-XXXX)`; lead dicatat di `coffee_shops/{id}/leads`; owner menandai "jadi beli" di dashboard | Counter harian di `coffee_shops/{id}/stats/{hari}` |
 
-## Setup Steps
+Algoritma kode redeem ada di **dua tempat** (`lib/core/utils/redeem_code.dart` dan
+`functions/src/codes.ts`) dan dikunci oleh test vector yang sama (`HR8J3H`) di kedua sisi.
 
-### 1. Firebase Project
+## Setup
 
-```
-console.firebase.google.com → New Project
-Enable: Authentication (Google), Firestore, Storage, Realtime Database
-```
+### 1. Firebase
+Aktifkan Authentication (Google), Firestore, Storage, Realtime Database, Cloud Functions
+(butuh paket **Blaze**). Config sudah ada di `android/app/google-services.json` dan
+`lib/firebase_options.dart`.
 
-### 2. Download Config Files
+### 2. Admin
+UID admin ada di `lib/core/constants/admin_config.dart`, `firestore.rules`,
+`storage.rules`, `database.rules.json`, dan parameter `ADMIN_UIDS` di Functions — samakan semuanya.
 
-```
-Android: google-services.json → android/app/
-iOS:     GoogleService-Info.plist → ios/Runner/
-```
-
-### 3. Set Your Admin UID
-
-Pertama kali login dengan Google di app. Cek Firebase Console →
-Authentication → Users → copy UID kamu.
-
-Ganti semua `REPLACE_WITH_YOUR_FIREBASE_UID` di:
-- `lib/core/constants/admin_config.dart`
-- `firestore.rules`
-- `storage.rules`
-- `database.rules.json`
-
-### 4. Deploy Rules
-
-Firebase Console atau via CLI:
+### 3. Deploy rules, index, dan functions
 ```bash
-npm install -g firebase-tools
-firebase login
-firebase init
-firebase deploy --only firestore:rules,storage,database
+cd functions && npm install && cd ..
+firebase deploy --only firestore:rules,firestore:indexes,storage,database,functions
 ```
+Saat deploy pertama, CLI menanyakan parameter `ADMIN_UIDS` dan `ANDROID_PACKAGE`
+(default `com.streetcoffee.app.street_coffees`).
 
-### 5. Android Permissions (AndroidManifest.xml)
+### 4. Street Pass (Google Play)
+1. Buat subscription `street_pass_monthly` dan `street_pass_yearly` (dengan trial 7 hari) di Play Console.
+2. Beri service account Cloud Functions akses **View financial data** di Play Console → Users & permissions.
+3. iOS belum didukung (`verifyPassPurchase` mengembalikan `unimplemented`).
 
-```xml
-<uses-permission android:name="android.permission.INTERNET"/>
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-```
+### 5. Kedai Pro
+- Klaim masuk ke koleksi `shop_claims`. Setelah verifikasi, admin mengisi `ownerUid` dan
+  `pro: { tier: 'pro', until: <Timestamp> }` di dokumen kedai (tagihan via transfer/QRIS di luar app).
+- Staf kasir tambahan: isi array `staffUids` di dokumen kedai.
+- Bagi hasil tercatat di `revenue_share/{yyyymm}/shops/{shopId}` (`status: pending_transfer`); transfer dilakukan manual.
 
-### 6. iOS Permissions (Info.plist)
-
-```xml
-<key>NSLocationWhenInUseUsageDescription</key>
-<string>Butuh lokasi untuk menemukan kedai terdekat</string>
-<key>NSPhotoLibraryUsageDescription</key>
-<string>Butuh akses foto untuk upload gambar kedai</string>
-```
-
-### 7. Google Sign-In SHA-1 (Android)
-
-```bash
-cd android && ./gradlew signingReport
-# Copy SHA-1 → Firebase Console → Project Settings → Android App → Add fingerprint
-```
-
-### 8. Run
-
+### 6. Jalankan
 ```bash
 flutter pub get
 flutter run
 ```
 
-## Admin Flow
+## Test
 
-1. Login dengan Google
-2. Jika UID match `AdminConfig.adminUid` → `user.isAdmin = true`
-3. FAB "+" muncul di Home untuk tambah kedai baru
-4. Di detail page: tombol edit + toggle BUKA/TUTUP
-5. Toggle isOpen langsung update RTDB → semua user yang buka page melihat perubahan real-time
-
-## Data Flow: isOpen Real-Time
-
-```
-Admin tap toggle → AdminBloc → RTDB ref('presence/shops/{id}').set(isOpen: false)
-                             → Firestore update (non-blocking, sync)
-User di detail page → FirebaseDatabase.instance.ref(...).onValue.listen(...)
-                    → setState(_rtdbIsOpen) → UI update instant
+```bash
+flutter analyze
+flutter test                                   # unit test Dart
+npm --prefix functions test                    # unit test Functions
+firebase emulators:exec --only firestore "node --test functions/rules-test/"   # security rules (JDK 21)
 ```
 
-## Comment Flow
+## Catatan data
 
-```
-User login → CommentSection → CommentBloc.add(CommentAdd)
-→ CommentRepository → Firestore 'coffee_shops/{id}/comments' + RTDB counter++
-→ Stream auto-updates via CommentBloc._CommentsUpdated
-```
+| Koleksi | Ditulis oleh |
+|---|---|
+| `coffee_shops` | admin; owner hanya field listing |
+| `coffee_shops/{id}/stats`, `/leads` | klien (views, lead, konversi) + Functions (drops, redemptions, jam, menu) |
+| `drops`, `drops/{id}/cheers`, `/comments` | klien; counter & stempel oleh Functions |
+| `users/{uid}` | klien (profil); `stampsCount`, `dropsCount`, `passUntil` oleh Functions |
+| `promos` | owner kedai; `usage` oleh Functions |
+| `memberships`, `redemptions`, `revenue_share` | hanya Functions |

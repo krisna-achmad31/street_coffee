@@ -1,13 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
-import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/router/app_router.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../domain/entities/comment.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/comment/comment_bloc.dart';
+import '../ui/buttons.dart';
+import '../ui/common.dart';
 
+/// Shop reviews: rating summary, composer (or login prompt), list.
 class CommentSection extends StatefulWidget {
   final String shopId;
   const CommentSection({super.key, required this.shopId});
@@ -19,32 +27,41 @@ class CommentSection extends StatefulWidget {
 class _CommentSectionState extends State<CommentSection> {
   final _textCtrl = TextEditingController();
   double _rating = 5.0;
+  String? _lastSent;
+  StreamSubscription<String>? _failures;
 
   @override
   void initState() {
     super.initState();
-    context.read<CommentBloc>().add(CommentWatch(widget.shopId));
+    final bloc = context.read<CommentBloc>()..add(CommentWatch(widget.shopId));
+    _failures = bloc.failures.listen((msg) {
+      if (!mounted) return;
+      // Give the user their review back instead of silently losing it.
+      if (_lastSent != null && _textCtrl.text.isEmpty) _textCtrl.text = _lastSent!;
+      _lastSent = null;
+      showAppSnack(context, msg, error: true);
+    });
   }
 
   @override
   void dispose() {
+    _failures?.cancel();
     _textCtrl.dispose();
     super.dispose();
   }
 
-  void _submitComment(AuthAuthenticated authState) {
+  void _submit(AuthAuthenticated auth) {
     final text = _textCtrl.text.trim();
     if (text.isEmpty) return;
-
+    _lastSent = text;
     context.read<CommentBloc>().add(CommentAdd(
           shopId: widget.shopId,
-          userId: authState.user.uid,
-          userName: authState.user.displayName,
-          userPhotoUrl: authState.user.photoUrl,
+          userId: auth.user.uid,
+          userName: auth.user.displayName,
+          userPhotoUrl: auth.user.photoUrl,
           text: text,
           rating: _rating,
         ));
-
     _textCtrl.clear();
     FocusScope.of(context).unfocus();
   }
@@ -52,53 +69,52 @@ class _CommentSectionState extends State<CommentSection> {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Review & Komentar', style: AppTextStyles.headingSmall),
-        const SizedBox(height: 16),
-
-        // Input — only if logged in
-        BlocBuilder<AuthBloc, AuthState>(
-          builder: (context, authState) {
-            if (authState is AuthAuthenticated) {
-              return _buildCommentInput(authState);
+        BlocBuilder<CommentBloc, CommentState>(
+          builder: (context, state) {
+            if (state is CommentLoaded && state.comments.isNotEmpty) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: _Summary(comments: state.comments),
+              );
             }
-            return _buildLoginPrompt();
+            return const SizedBox.shrink();
           },
         ),
-
-        const SizedBox(height: 20),
-
-        // Comments list
+        BlocBuilder<AuthBloc, AuthState>(
+          builder: (context, auth) => auth is AuthAuthenticated
+              ? _composer(auth)
+              : _loginPrompt(context),
+        ),
+        const SizedBox(height: 14),
         BlocBuilder<CommentBloc, CommentState>(
           builder: (context, state) {
             if (state is CommentLoading) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                ),
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
               );
             }
             if (state is CommentLoaded) {
               if (state.comments.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'Belum ada review. Jadi yang pertama!',
-                      style: AppTextStyles.bodySmall,
-                    ),
-                  ),
+                return Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('Belum ada review. Jadi yang pertama!',
+                      textAlign: TextAlign.center, style: AppTextStyles.meta),
                 );
               }
-              return Column(
-                children: state.comments
-                    .map((c) => _CommentCard(
-                          comment: c,
-                          shopId: widget.shopId,
-                        ))
-                    .toList(),
+              return Column(children: [
+                for (final c in state.comments)
+                  _CommentCard(comment: c, shopId: widget.shopId),
+              ]);
+            }
+            if (state is CommentError) {
+              return InlineError(
+                state.message,
+                onRetry: () => context
+                    .read<CommentBloc>()
+                    .add(CommentWatch(widget.shopId)),
               );
             }
             return const SizedBox.shrink();
@@ -108,105 +124,133 @@ class _CommentSectionState extends State<CommentSection> {
     );
   }
 
-  Widget _buildCommentInput(AuthAuthenticated authState) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.bgCard,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Rating
-          Text('Rating kamu:', style: AppTextStyles.bodySmall),
-          const SizedBox(height: 6),
-          RatingBar.builder(
-            initialRating: _rating,
-            minRating: 1,
-            direction: Axis.horizontal,
-            itemCount: 5,
-            itemSize: 28,
-            itemBuilder: (_, __) => const Icon(
-              Icons.star_rounded,
-              color: AppColors.star,
+  Widget _composer(AuthAuthenticated auth) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Rating kamu', style: AppTextStyles.meta),
+            const SizedBox(height: 6),
+            RatingBar.builder(
+              initialRating: _rating,
+              minRating: 1,
+              itemCount: 5,
+              itemSize: 28,
+              itemBuilder: (_, __) =>
+                  const Icon(Icons.star_rounded, color: AppColors.star),
+              onRatingUpdate: (r) => setState(() => _rating = r),
             ),
-            onRatingUpdate: (r) => setState(() => _rating = r),
-          ),
-          const SizedBox(height: 12),
-          // Text input
-          TextField(
-            controller: _textCtrl,
-            style: AppTextStyles.bodyMedium,
-            maxLines: 3,
-            decoration: InputDecoration(
-              hintText: 'Tulis review kamu...',
-              hintStyle:
-                  AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted),
-              filled: true,
-              fillColor: AppColors.bgCardAlt,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.all(12),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerRight,
-            child: GestureDetector(
-              onTap: () => _submitComment(authState),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text('Kirim', style: AppTextStyles.button),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _textCtrl,
+              maxLines: 3,
+              minLines: 2,
+              style: AppTextStyles.body,
+              decoration: const InputDecoration(
+                hintText: 'Tulis review kamu…',
+                fillColor: AppColors.surfaceAlt,
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: SizedBox(
+                width: 120,
+                child: PrimaryButton(
+                    label: 'Kirim', height: 44, onPressed: () => _submit(auth)),
+              ),
+            ),
+          ],
+        ),
+      );
 
-  Widget _buildLoginPrompt() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.bgCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.divider),
-      ),
-      child: Row(
-        children: [
+  Widget _loginPrompt(BuildContext context) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Row(children: [
           const Icon(Icons.lock_outline_rounded,
               color: AppColors.textMuted, size: 20),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              'Login dengan Google untuk kasih review',
-              style: AppTextStyles.bodySmall,
+            child: Text('Masuk untuk kasih review', style: AppTextStyles.meta),
+          ),
+          SizedBox(
+            width: 88,
+            child: PrimaryButton(
+              label: 'Masuk',
+              height: 38,
+              onPressed: () => context.push(AppRouter.login),
             ),
           ),
-          GestureDetector(
-            onTap: () =>
-                context.read<AuthBloc>().add(AuthSignInGoogle()),
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(8),
+        ]),
+      );
+}
+
+class _Summary extends StatelessWidget {
+  final List<Comment> comments;
+  const _Summary({required this.comments});
+
+  @override
+  Widget build(BuildContext context) {
+    final rated = comments.where((c) => c.rating != null).toList();
+    if (rated.isEmpty) return const SizedBox.shrink();
+    final avg = rated.map((c) => c.rating!).reduce((a, b) => a + b) / rated.length;
+    final dist = List<int>.filled(5, 0);
+    for (final c in rated) {
+      dist[(c.rating!.round().clamp(1, 5)) - 1]++;
+    }
+    final maxCount = dist.reduce((a, b) => a > b ? a : b);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+          color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
+      child: Row(children: [
+        Column(children: [
+          Text(avg.toStringAsFixed(1),
+              style: AppTextStyles.display.copyWith(fontSize: 36)),
+          Row(children: [
+            for (var i = 0; i < 5; i++)
+              Icon(Icons.star_rounded,
+                  size: 12,
+                  color: i < avg.round() ? AppColors.star : AppColors.textMuted),
+          ]),
+          const SizedBox(height: 2),
+          Text('${rated.length} review',
+              style: AppTextStyles.meta.copyWith(fontSize: 11, color: AppColors.textMuted)),
+        ]),
+        const SizedBox(width: 20),
+        Expanded(
+          child: Column(children: [
+            for (var s = 5; s >= 1; s--)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(children: [
+                  Text('$s',
+                      style: AppTextStyles.meta
+                          .copyWith(fontSize: 11, color: AppColors.textMuted)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: LinearProgressIndicator(
+                        value: maxCount == 0 ? 0 : dist[s - 1] / maxCount,
+                        minHeight: 6,
+                        backgroundColor: AppColors.surfaceAlt,
+                        color: s >= 4 ? AppColors.primary : AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ]),
               ),
-              child: Text('Login', style: AppTextStyles.button.copyWith(fontSize: 12)),
-            ),
-          ),
-        ],
-      ),
+          ]),
+        ),
+      ]),
     );
   }
 }
@@ -218,89 +262,63 @@ class _CommentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authState = context.read<AuthBloc>().state;
-    final isOwner = authState is AuthAuthenticated &&
-        authState.user.uid == comment.userId;
-    final isAdmin = authState is AuthAuthenticated && authState.user.isAdmin;
-    final canDelete = isOwner || isAdmin;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.bgCard,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundImage: comment.userPhotoUrl != null
-                      ? NetworkImage(comment.userPhotoUrl!)
-                      : null,
-                  backgroundColor: AppColors.bgCardAlt,
-                  child: comment.userPhotoUrl == null
-                      ? Text(
-                          comment.userName[0].toUpperCase(),
-                          style: AppTextStyles.bodySmall.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(comment.userName,
-                          style: AppTextStyles.bodySmall.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          )),
-                      Text(
-                        DateFormat('d MMM yyyy').format(comment.createdAt),
-                        style: AppTextStyles.caption,
-                      ),
-                    ],
-                  ),
-                ),
-                if (comment.rating != null)
-                  Row(
-                    children: [
-                      const Icon(Icons.star_rounded,
-                          color: AppColors.star, size: 14),
-                      const SizedBox(width: 2),
-                      Text(
-                        comment.rating!.toStringAsFixed(1),
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                if (canDelete)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded,
-                        color: AppColors.textMuted, size: 18),
-                    onPressed: () {
-                      context.read<CommentBloc>().add(CommentDelete(
-                            shopId: shopId,
-                            commentId: comment.id,
-                          ));
-                    },
-                  ),
-              ],
+    final auth = context.read<AuthBloc>().state;
+    final canDelete = auth is AuthAuthenticated &&
+        (auth.user.uid == comment.userId || auth.user.isAdmin);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            UserAvatar(url: comment.userPhotoUrl, name: comment.userName),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(comment.userName,
+                      style: AppTextStyles.body
+                          .copyWith(fontSize: 13, fontWeight: FontWeight.w600)),
+                  Text(Fmt.timeAgo(comment.createdAt),
+                      style: AppTextStyles.meta
+                          .copyWith(fontSize: 11, color: AppColors.textMuted)),
+                ],
+              ),
             ),
-            const SizedBox(height: 10),
-            Text(comment.text, style: AppTextStyles.bodyMedium),
-          ],
-        ),
+            if (comment.rating != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.star_rounded, size: 12, color: AppColors.star),
+                  const SizedBox(width: 3),
+                  Text(comment.rating!.toStringAsFixed(1),
+                      style: AppTextStyles.meta.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700)),
+                ]),
+              ),
+            if (canDelete)
+              IconButton(
+                tooltip: 'Hapus',
+                icon: const Icon(Icons.delete_outline_rounded,
+                    color: AppColors.textMuted, size: 18),
+                onPressed: () => context.read<CommentBloc>().add(
+                    CommentDelete(shopId: shopId, commentId: comment.id)),
+              ),
+          ]),
+          const SizedBox(height: 10),
+          Text(comment.text,
+              style: AppTextStyles.body
+                  .copyWith(fontSize: 13, color: AppColors.textSecondary)),
+        ],
       ),
     );
   }

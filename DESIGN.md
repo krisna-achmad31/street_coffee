@@ -185,7 +185,10 @@ Detail/Profil → "Punya kedai?" → Kedai Pro (landing) → Dashboard
 |---|---|---|
 | 23 | Street Pass | Pass card miring (nama member + jumlah kedai) · "Ngopi lebih hemat, flexing lebih keren." · 5 benefit · plan Bulanan Rp19rb / **Tahunan Rp149rb (hemat 35%)** · "Coba gratis 7 hari" · catatan "Drop, like & komentar tetap gratis selamanya" |
 | 24 | Kedai Pro (Landing) | Hero foto · "Bikin kedaimu jadi tongkrongan berikutnya." · preview chart klik WA (ditandai ilustrasi) · 5 fitur · tier **Basic Gratis / Pro Rp99rb / Pro+ Rp249rb** · "Klaim kedaimu" · bayar via web |
-| 25 | Kedai Pro (Dashboard) | Header kedai + PRO · periode 7/30/90 hari · KPI (dilihat, klik WA, drop, pengikut) · chart jam ramai + insight · menu paling sering di-Drop · review belum dibalas · Boost / Buat promo |
+| 25 | Kedai Pro (Dashboard) | Header kedai + PRO · periode 7/30/90 hari · **kartu bukti pelanggan** (redeem + lead WA ditandai, estimasi omzet, input "Jadi beli" untuk kode SC-XXXX) · KPI (dilihat, lead WA berkode, drop, pengikut) · bagi hasil Street Pass · chart jam ramai + insight · menu paling sering di-Drop · review belum dibalas · Boost / Buat promo |
+| 28 | Pakai Promo (member) | Voucher bergaya struk · QR + **kode 6 karakter berganti tiap 30 dtk** · countdown · jam live + nama member (anti-screenshot) · 3 langkah · syarat |
+| 29 | Mode Kasir (kedai) | Input kode 6 kotak · hasil **Kode valid** (promo, member, kuota tersisa, redeem ke-N) · status gagal: kedaluwarsa / sudah dipakai hari ini / kuota habis / bukan member |
+| 30 | Buat Promo (kedai) | Jenis (bundling/potongan/gratis item) · menu · harga promo + % hemat · kuota/hari · periode · khusus member · penjelasan **diskon ditanggung kedai + poin bagi hasil** |
 
 ---
 

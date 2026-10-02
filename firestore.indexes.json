@@ -1,0 +1,129 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "drops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "hidden",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "publishAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "drops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "hidden",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "publishAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "drops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "hidden",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "followerIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "publishAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "drops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "drops",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "promos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "endAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "promos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "memberOnly",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "endAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "redeem_intents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "shopId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

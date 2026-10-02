@@ -2,12 +2,25 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == 'uSR6zFYKnSOMzlTYLNURchYQTw43';
+    }
+    function isImage() {
+      return request.resource.contentType.matches('image/.*')
+        && request.resource.size < 5 * 1024 * 1024;
+    }
 
-    // Shop images — public read, only authenticated admin can write
+    // Shop images — public read, admin write.
     match /shops/{shopId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null
-        && request.auth.uid == 'REPLACE_WITH_YOUR_FIREBASE_UID';
+      allow write: if isAdmin() && (request.resource == null || isImage());
+    }
+
+    // Drop photos — only the author uploads into their own folder.
+    match /drops/{uid}/{dropId}/{file} {
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.uid == uid && isImage();
+      allow delete: if request.auth != null && (request.auth.uid == uid || isAdmin());
     }
   }
 }

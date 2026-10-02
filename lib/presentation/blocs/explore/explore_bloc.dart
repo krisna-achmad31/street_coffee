@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../domain/entities/coffee_shop.dart';
 import '../../../domain/entities/user_location.dart';
 import '../../../domain/usecases/coffee_shop_usecases.dart';
+import '../transformers.dart';
 
 part 'explore_event.dart';
 part 'explore_state.dart';
@@ -21,75 +22,55 @@ class ExploreBloc extends Bloc<ExploreEvent, ExploreState> {
     required this.getNearbyShops,
     required this.searchShops,
   }) : super(ExploreInitial()) {
-    on<ExploreLoadShops>(_onLoadShops);
-    on<ExploreFilterChanged>(_onFilterChanged);
-    on<ExploreSearchChanged>(_onSearchChanged);
-    on<ExploreRefresh>(_onRefresh);
+    // One restartable handler for every fetch: typing fast, flipping filters
+    // or a location change mid-request can't let a stale response win.
+    on<ExploreEvent>(_onEvent, transformer: restartable);
   }
 
-  Future<void> _onLoadShops(
-    ExploreLoadShops event,
-    Emitter<ExploreState> emit,
-  ) async {
-    _lastLocation = event.location;
-    emit(ExploreLoading());
-    await _fetchShops(emit);
-  }
-
-  Future<void> _onFilterChanged(
-    ExploreFilterChanged event,
-    Emitter<ExploreState> emit,
-  ) async {
-    _activeVibe = event.vibe;
-    _isOpenFilter = event.isOpen;
-    _maxPriceFilter = event.maxPrice;
-
-    if (_lastLocation == null) return;
-    emit(ExploreLoading());
-    await _fetchShops(emit);
-  }
-
-  Future<void> _onSearchChanged(
-    ExploreSearchChanged event,
-    Emitter<ExploreState> emit,
-  ) async {
-    if (event.query.isEmpty) {
-      _lastLocation = event.location;
-      await _fetchShops(emit);
-      return;
-    }
-
-    emit(ExploreLoading());
-    final result = await searchShops(
-      SearchShopsParams(query: event.query, location: event.location),
-    );
-
-    result.fold(
-      (failure) => emit(ExploreError(failure.message)),
-      (shops) {
-        if (shops.isEmpty) {
-          emit(const ExploreEmpty('Kedai tidak ditemukan'));
-        } else {
-          emit(ExploreLoaded(shops: shops));
+  Future<void> _onEvent(ExploreEvent event, Emitter<ExploreState> emit) async {
+    switch (event) {
+      case ExploreLoadShops(:final location):
+        _lastLocation = location;
+        emit(ExploreLoading());
+        await _fetchShops(emit);
+      case ExploreFilterChanged():
+        _activeVibe = event.vibe;
+        _isOpenFilter = event.isOpen;
+        _maxPriceFilter = event.maxPrice;
+        if (_lastLocation == null) return;
+        emit(ExploreLoading());
+        await _fetchShops(emit);
+      case ExploreSearchChanged(:final query, :final location):
+        _lastLocation = location;
+        if (query.trim().isEmpty) {
+          emit(ExploreLoading());
+          await _fetchShops(emit);
+          return;
         }
-      },
-    );
-  }
-
-  Future<void> _onRefresh(
-    ExploreRefresh event,
-    Emitter<ExploreState> emit,
-  ) async {
-    _lastLocation = event.location;
-    await _fetchShops(emit);
+        emit(ExploreLoading());
+        final result = await searchShops(
+          SearchShopsParams(query: query.trim(), location: location),
+        );
+        result.fold(
+          (failure) => emit(ExploreError(failure.message)),
+          (shops) => emit(shops.isEmpty
+              ? const ExploreEmpty('Kedai tidak ditemukan')
+              : ExploreLoaded(shops: shops)),
+        );
+      case ExploreRefresh(:final location):
+        // No loading state: the list stays visible under the refresh spinner.
+        _lastLocation = location;
+        await _fetchShops(emit);
+    }
   }
 
   Future<void> _fetchShops(Emitter<ExploreState> emit) async {
-    if (_lastLocation == null) return;
+    final location = _lastLocation;
+    if (location == null) return;
 
     final result = await getNearbyShops(
       GetNearbyShopsParams(
-        location: _lastLocation!,
+        location: location,
         vibeFilter: _activeVibe,
         isOpenFilter: _isOpenFilter,
         maxPriceFilter: _maxPriceFilter,

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../core/constants/firebase_paths.dart';
 import '../models/comment_model.dart';
+import '../models/json_reader.dart';
 
 abstract class CommentRemoteDataSource {
   Stream<List<CommentModel>> watchComments(String shopId);
@@ -33,8 +34,9 @@ class CommentRemoteDataSourceImpl implements CommentRemoteDataSource {
         .orderBy('createdAt', descending: true)
         .limit(50)
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => CommentModel.fromFirestore(d)).toList());
+        .map((snap) => parseEach(snap.docs, CommentModel.fromFirestore)
+            .where((c) => c.text.isNotEmpty)
+            .toList());
   }
 
   @override
@@ -61,8 +63,7 @@ class CommentRemoteDataSourceImpl implements CommentRemoteDataSource {
     });
 
     // Increment RTDB counter
-    final counterRef = _rtdb.ref(FirebasePaths.shopCommentCount(shopId));
-    await counterRef.set(ServerValue.increment(1));
+    await _bumpCounter(shopId, 1);
   }
 
   @override
@@ -75,7 +76,16 @@ class CommentRemoteDataSourceImpl implements CommentRemoteDataSource {
         .doc(commentId)
         .delete();
 
-    final counterRef = _rtdb.ref(FirebasePaths.shopCommentCount(shopId));
-    await counterRef.set(ServerValue.increment(-1));
+    await _bumpCounter(shopId, -1);
+  }
+
+  /// Best-effort: the review itself is already saved, so a denied or offline
+  /// counter write must not surface as a failed review.
+  Future<void> _bumpCounter(String shopId, int by) async {
+    try {
+      await _rtdb
+          .ref(FirebasePaths.shopCommentCount(shopId))
+          .set(ServerValue.increment(by));
+    } catch (_) {}
   }
 }

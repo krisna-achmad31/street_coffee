@@ -5,7 +5,6 @@ import '../../domain/entities/coffee_shop.dart';
 import '../../domain/entities/user_location.dart';
 import '../../domain/repositories/coffee_shop_repository.dart';
 import '../datasources/coffee_shop_remote_datasource.dart';
-import '../models/coffee_shop_model.dart';
 
 class CoffeeShopRepositoryImpl implements CoffeeShopRepository {
   final CoffeeShopRemoteDataSource remoteDataSource;
@@ -29,20 +28,15 @@ class CoffeeShopRepositoryImpl implements CoffeeShopRepository {
       // Compute distance and sort
       final shops = models
           .map((m) => m.copyWith(
-                distanceKm: _calculateDistance(
-                  location.latitude,
-                  location.longitude,
-                  m.latitude,
-                  m.longitude,
-                ),
+                distanceKm: _distanceTo(location, m),
               ))
           .toList()
         ..sort((a, b) =>
             (a.distanceKm ?? 99999).compareTo(b.distanceKm ?? 99999));
 
       return Right(shops);
-    } on Exception catch (e) {
-      return Left(ServerFailure(e.toString()));
+    } catch (e) {
+      return Left(Failure.from(e, 'Gagal memuat kedai. Coba lagi.'));
     }
   }
 
@@ -51,8 +45,8 @@ class CoffeeShopRepositoryImpl implements CoffeeShopRepository {
     try {
       final models = await remoteDataSource.getFeaturedShops();
       return Right(models);
-    } on Exception catch (e) {
-      return Left(ServerFailure(e.toString()));
+    } catch (e) {
+      return Left(Failure.from(e, 'Gagal memuat kedai. Coba lagi.'));
     }
   }
 
@@ -61,8 +55,8 @@ class CoffeeShopRepositoryImpl implements CoffeeShopRepository {
     try {
       final model = await remoteDataSource.getShopById(id);
       return Right(model);
-    } on Exception catch (e) {
-      return Left(ServerFailure(e.toString()));
+    } catch (e) {
+      return Left(Failure.from(e, 'Gagal memuat kedai. Coba lagi.'));
     }
   }
 
@@ -75,19 +69,19 @@ class CoffeeShopRepositoryImpl implements CoffeeShopRepository {
       final models = await remoteDataSource.searchShops(query);
       final shops = models
           .map((m) => m.copyWith(
-                distanceKm: _calculateDistance(
-                  location.latitude,
-                  location.longitude,
-                  m.latitude,
-                  m.longitude,
-                ),
+                distanceKm: _distanceTo(location, m),
               ))
           .toList();
       return Right(shops);
-    } on Exception catch (e) {
-      return Left(ServerFailure(e.toString()));
+    } catch (e) {
+      return Left(Failure.from(e, 'Gagal memuat kedai. Coba lagi.'));
     }
   }
+
+  double? _distanceTo(UserLocation from, CoffeeShop shop) => shop.hasLocation
+      ? _calculateDistance(
+          from.latitude, from.longitude, shop.latitude, shop.longitude)
+      : null;
 
   /// Haversine formula
   double _calculateDistance(

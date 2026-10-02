@@ -16,8 +16,8 @@ class AdminShopRepositoryImpl implements AdminShopRepository {
     try {
       final id = await dataSource.createShop(data);
       return Right(id);
-    } on Exception catch (e) {
-      return Left(ServerFailure(e.toString()));
+    } catch (e) {
+      return Left(Failure.from(e, 'Gagal menyimpan data kedai. Coba lagi.'));
     }
   }
 
@@ -29,8 +29,8 @@ class AdminShopRepositoryImpl implements AdminShopRepository {
     try {
       await dataSource.updateShop(shopId, data);
       return const Right(null);
-    } on Exception catch (e) {
-      return Left(ServerFailure(e.toString()));
+    } catch (e) {
+      return Left(Failure.from(e, 'Gagal menyimpan data kedai. Coba lagi.'));
     }
   }
 
@@ -39,8 +39,8 @@ class AdminShopRepositoryImpl implements AdminShopRepository {
     try {
       await dataSource.deleteShop(shopId);
       return const Right(null);
-    } on Exception catch (e) {
-      return Left(ServerFailure(e.toString()));
+    } catch (e) {
+      return Left(Failure.from(e, 'Gagal menyimpan data kedai. Coba lagi.'));
     }
   }
 
@@ -49,8 +49,8 @@ class AdminShopRepositoryImpl implements AdminShopRepository {
     try {
       await dataSource.setIsOpen(shopId, isOpen);
       return const Right(null);
-    } on Exception catch (e) {
-      return Left(ServerFailure(e.toString()));
+    } catch (e) {
+      return Left(Failure.from(e, 'Gagal menyimpan data kedai. Coba lagi.'));
     }
   }
 
@@ -62,8 +62,8 @@ class AdminShopRepositoryImpl implements AdminShopRepository {
     try {
       final url = await dataSource.uploadGalleryImage(shopId, imageFile);
       return Right(url);
-    } on Exception catch (e) {
-      return Left(ServerFailure(e.toString()));
+    } catch (e) {
+      return Left(Failure.from(e, 'Gagal menyimpan data kedai. Coba lagi.'));
     }
   }
 }

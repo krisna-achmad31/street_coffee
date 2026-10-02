@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../core/constants/admin_config.dart';
+import '../../core/utils/failures.dart';
 import '../../domain/entities/app_user.dart';
 
 abstract class AuthRemoteDataSource {
@@ -38,12 +39,12 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         googleProvider,
       );
       final user = userCredential.user;
-      if (user == null) throw Exception('Firebase user null');
+      if (user == null) throw const ServerFailure('Gagal masuk. Coba lagi.');
       return _mapFirebaseUser(user)!;
     } on FirebaseAuthException catch (e) {
       // Kalau user tutup browser sebelum selesai
       if (e.code == 'web-context-canceled') {
-        throw Exception('Login dibatalkan');
+        throw const ServerFailure('Login dibatalkan');
       }
       // Cek apakah sudah login via auth state (redirect sudah selesai)
       final currentUser = _firebaseAuth.currentUser;
@@ -65,11 +66,12 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   AppUser? _mapFirebaseUser(User? user) {
     if (user == null) return null;
-    print('user: $user');
     return AppUser(
       uid: user.uid,
       email: user.email ?? '',
-      displayName: user.displayName ?? 'User',
+      displayName: (user.displayName ?? '').trim().isEmpty
+          ? (user.email?.split('@').first ?? 'Pengopi')
+          : user.displayName!.trim(),
       photoUrl: user.photoURL,
       isAdmin: AdminConfig.isAdmin(user.uid),
     );

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../core/utils/failures.dart';
 import '../models/coffee_shop_model.dart';
+import '../models/json_reader.dart';
 
 abstract class CoffeeShopRemoteDataSource {
   Future<List<CoffeeShopModel>> getNearbyShops({
@@ -28,23 +30,20 @@ class CoffeeShopRemoteDataSourceImpl implements CoffeeShopRemoteDataSource {
     bool? isOpenFilter,
     int? maxPriceFilter,
   }) async {
+    // Only one server-side filter: array-contains alone needs no composite
+    // index. Combining it with isOpen / minPrice did, and failed at runtime
+    // with failed-precondition as soon as a user picked two filters.
     Query<Map<String, dynamic>> query =
-        firestore.collection(_collection).limit(50);
-
-    // Apply filters (Firestore compound queries need composite index)
+        firestore.collection(_collection).limit(vibeFilter == null ? 100 : 60);
     if (vibeFilter != null && vibeFilter.isNotEmpty) {
       query = query.where('vibes', arrayContains: vibeFilter);
     }
-    if (isOpenFilter != null) {
-      query = query.where('isOpen', isEqualTo: isOpenFilter);
-    }
-    if (maxPriceFilter != null) {
-      query = query.where('minPrice', isLessThanOrEqualTo: maxPriceFilter);
-    }
 
     final snapshot = await query.get();
-    return snapshot.docs
-        .map((doc) => CoffeeShopModel.fromFirestore(doc))
+    return parseEach(snapshot.docs, CoffeeShopModel.fromFirestore)
+        .where((s) =>
+            (isOpenFilter == null || s.isOpen == isOpenFilter) &&
+            (maxPriceFilter == null || s.minPrice <= maxPriceFilter))
         .toList();
   }
 
@@ -56,20 +55,20 @@ class CoffeeShopRemoteDataSourceImpl implements CoffeeShopRemoteDataSource {
         .limit(10)
         .get();
 
-    return snapshot.docs
-        .map((doc) => CoffeeShopModel.fromFirestore(doc))
-        .toList();
+    return parseEach(snapshot.docs, CoffeeShopModel.fromFirestore);
   }
 
   @override
   Future<CoffeeShopModel> getShopById(String id) async {
     final doc = await firestore.collection(_collection).doc(id).get();
-    if (!doc.exists) throw Exception('Shop not found');
+    if (!doc.exists) throw const NotFoundFailure('Kedai ini sudah tidak ada.');
     return CoffeeShopModel.fromFirestore(doc);
   }
 
   @override
   Future<List<CoffeeShopModel>> searchShops(String query) async {
+    query = query.trim();
+    if (query.isEmpty) return const [];
     // Simple prefix search on name (for advanced search use Algolia)
     final snapshot = await firestore
         .collection(_collection)
@@ -79,8 +78,6 @@ class CoffeeShopRemoteDataSourceImpl implements CoffeeShopRemoteDataSource {
         .limit(20)
         .get();
 
-    return snapshot.docs
-        .map((doc) => CoffeeShopModel.fromFirestore(doc))
-        .toList();
+    return parseEach(snapshot.docs, CoffeeShopModel.fromFirestore);
   }
 }

@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../domain/entities/user_location.dart';
 import '../../../domain/usecases/location_usecases.dart';
+import '../../../core/utils/failures.dart';
 import '../../../core/utils/use_case.dart';
 
 // Events
@@ -42,9 +43,17 @@ class LocationLoaded extends LocationState {
 
 class LocationError extends LocationState {
   final String message;
-  const LocationError(this.message);
+  final LocationIssue issue;
+  const LocationError(this.message, [this.issue = LocationIssue.unavailable]);
+
+  /// Permission problems get the "Izin lokasi" screen; the rest a retry.
+  bool get isPermission =>
+      issue == LocationIssue.permissionDenied ||
+      issue == LocationIssue.permissionDeniedForever ||
+      issue == LocationIssue.serviceDisabled;
+
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, issue];
 }
 
 // BLoC
@@ -68,7 +77,9 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
     emit(LocationLoading());
     final result = await getCurrentLocation(const NoParams());
     result.fold(
-      (failure) => emit(LocationError(failure.message)),
+      (failure) => emit(LocationError(
+          failure.message,
+          failure is LocationFailure ? failure.issue : LocationIssue.unavailable)),
       (location) => emit(LocationLoaded(location)),
     );
   }
@@ -79,16 +90,13 @@ class LocationBloc extends Bloc<LocationEvent, LocationState> {
   ) async {
     emit(LocationLoading());
     final result = await getLastSavedLocation(const NoParams());
-    result.fold(
-      (failure) => emit(LocationError(failure.message)),
-      (location) {
-        if (location != null) {
-          emit(LocationLoaded(location));
-        } else {
-          add(LocationGetCurrent());
-        }
-      },
-    );
+    final saved = result.fold((_) => null, (l) => l);
+    if (saved != null) {
+      emit(LocationLoaded(saved));
+    } else {
+      // Unreadable cache is the same as no cache: ask the GPS.
+      add(LocationGetCurrent());
+    }
   }
 
   Future<void> _onSet(

@@ -9,25 +9,38 @@ class WhatsAppLauncher {
     required String phone,
     required String message,
   }) async {
-    final encoded = Uri.encodeComponent(message);
-    final waUrl = Uri.parse('https://wa.me/$phone?text=$encoded');
-
-    if (await canLaunchUrl(waUrl)) {
-      await launchUrl(waUrl, mode: LaunchMode.externalApplication);
-      return true;
+    final digits = normalizePhone(phone);
+    if (digits.isEmpty) return false;
+    final waUrl = Uri.https('wa.me', '/$digits', {'text': message});
+    // canLaunchUrl lies on Android 11+ without a <queries> entry, so just try.
+    try {
+      return await launchUrl(waUrl, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      return false;
     }
-    return false;
   }
 
-  /// Build pre-filled order message
+  /// "0812-3456 789" / "+62 812…" / "812…" → "62812…"; '' if not a number.
+  static String normalizePhone(String raw) {
+    var d = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (d.startsWith('0')) d = '62${d.substring(1)}';
+    if (d.startsWith('8')) d = '62$d';
+    return d.length >= 9 && d.length <= 15 ? d : '';
+  }
+
+  /// Pre-filled order message. [attributionCode] is always appended on its
+  /// own line so the shop can match the chat to a Street Coffee lead.
   static String buildOrderMessage({
     required String shopName,
     required String? menuItem,
+    int quantity = 1,
+    String? attributionCode,
   }) {
-    final appSource = 'Street Coffee';
-    if (menuItem != null && menuItem.isNotEmpty) {
-      return 'Halo $shopName, saya dari aplikasi $appSource. Mau pesan: $menuItem.';
-    }
-    return 'Halo $shopName, saya dari aplikasi $appSource. Apakah masih buka?';
+    const appSource = 'Street Coffee';
+    final body = (menuItem != null && menuItem.isNotEmpty)
+        ? 'Halo $shopName 👋 saya dari aplikasi $appSource. '
+            'Mau pesan ${quantity > 1 ? '$quantity× ' : ''}$menuItem, masih bisa?'
+        : 'Halo $shopName 👋 saya dari aplikasi $appSource. Apakah masih buka?';
+    return attributionCode == null ? body : '$body\n(kode: $attributionCode)';
   }
 }

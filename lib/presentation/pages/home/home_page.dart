@@ -1,18 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/utils/formatters.dart';
+import '../../../domain/entities/commerce.dart';
+import '../../../domain/entities/social.dart';
+import '../../../domain/repositories/commerce_repository.dart';
+import '../../../domain/repositories/social_repository.dart';
+import '../../../injection_container.dart';
 import '../../blocs/auth/auth_bloc.dart';
 import '../../blocs/explore/explore_bloc.dart';
 import '../../blocs/location/location_bloc.dart';
-import '../../widgets/coffee_card/featured_card.dart';
-import '../../widgets/coffee_card/nearby_card.dart';
-import '../../widgets/common/vibe_chip.dart';
-import '../../widgets/common/bottom_nav_bar.dart';
+import '../../widgets/cards/shop_cards.dart';
+import '../../widgets/sheets/wa_confirm_sheet.dart';
+import '../../widgets/ui/chips.dart';
+import '../../widgets/ui/common.dart';
+import '../../widgets/ui/location_problem.dart';
+
+const homeVibes = [
+  ('☕', 'Nongkrong Skena'),
+  ('💬', 'Deep Talk'),
+  ('🫗', 'Manual Brew'),
+  ('💰', 'Kopi Hemat'),
+];
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -22,697 +35,500 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _currentTab = 0;
-
-  static const _vibes = [
-    ('☕', 'Nongkrong\nSkena'),
-    ('💬', 'Deep Talk'),
-    ('🫗', 'Manual Brew'),
-    ('💰', 'Kopi Hemat'),
-  ];
-
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _load(context.read<LocationBloc>().state);
   }
 
-  void _loadData() {
-    final locationState = context.read<LocationBloc>().state;
-    if (locationState is LocationLoaded) {
-      context.read<ExploreBloc>().add(ExploreLoadShops(locationState.location));
+  void _load(LocationState s) {
+    if (s is LocationLoaded) {
+      context.read<ExploreBloc>().add(ExploreLoadShops(s.location));
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bgDark,
-      body: IndexedStack(
-        index: _currentTab,
-        children: [
-          _buildHomeContent(),
-          _buildMapContent(),
-          _buildProfileContent(), // ← tab ke-3
-        ],
-      ),
-      floatingActionButton: _currentTab == 0
-          ? BlocBuilder<AuthBloc, AuthState>(
-              builder: (context, state) {
-                if (state is AuthAuthenticated && state.user.isAdmin) {
-                  return FloatingActionButton(
-                    onPressed: () => context.push(AppRouter.adminAddShop),
-                    backgroundColor: AppColors.primary,
-                    child: const Icon(Icons.add, color: AppColors.bgDark),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            )
-          : null,
-      bottomNavigationBar: AppBottomNavBar(
-        currentIndex: _currentTab,
-        onTap: (index) {
-          setState(() => _currentTab = index);
-          if (index == 0) _loadData();
-        },
-      ),
-    );
+  /// Keeps the spinner up until the reload actually finishes (max 15 s).
+  Future<void> _refresh(BuildContext context) async {
+    final loc = context.read<LocationBloc>().state;
+    if (loc is! LocationLoaded) {
+      context.read<LocationBloc>().add(LocationGetCurrent());
+      return;
+    }
+    final bloc = context.read<ExploreBloc>()..add(ExploreRefresh(loc.location));
+    await bloc.stream
+        .firstWhere((s) => s is! ExploreLoading)
+        .timeout(const Duration(seconds: 15), onTimeout: () => bloc.state);
   }
 
-  // ─── Tab 0: Home ──────────────────────────────────────────────────────────
-
-  Widget _buildHomeContent() {
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildLocationHeader(),
-                  const SizedBox(height: 20),
-                  _buildFeaturedSection(),
-                  const SizedBox(height: 20),
-                  _buildSearchBar(),
-                  const SizedBox(height: 20),
-                  _buildVibeCategories(),
-                  const SizedBox(height: 20),
-                  Text('Kedai Terdekat Baru', style: AppTextStyles.headingMedium),
-                  const SizedBox(height: 12),
-                ],
-              ),
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<LocationBloc, LocationState>(
+      listener: (_, s) => _load(s),
+      child: Scaffold(
+        body: SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
+            onRefresh: () => _refresh(context),
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                  sliver: SliverList.list(children: [
+                    const _Header(),
+                    const SizedBox(height: 24),
+                    // Two lines per the design; shrinks slightly under 390 dp.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text('Ngopi di mana\nmalam ini?',
+                          style: AppTextStyles.display),
+                    ),
+                    const SizedBox(height: 24),
+                    SearchTrigger(
+                      onTap: () => context.go(AppRouter.explore),
+                      onFilter: () => context.go(AppRouter.explore),
+                    ),
+                  ]),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                SliverToBoxAdapter(child: _VibeRow()),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                const SliverToBoxAdapter(child: _FeaturedSection()),
+                const SliverToBoxAdapter(child: _DropsSection()),
+                const SliverToBoxAdapter(child: _PassBanner()),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+                  sliver: SliverToBoxAdapter(
+                    child: SectionHeader(
+                      title: 'Terdekat dari kamu',
+                      action: 'Lihat semua',
+                      onAction: () => context.go(AppRouter.explore),
+                    ),
+                  ),
+                ),
+                const _NearbyList(),
+                const SliverToBoxAdapter(child: SizedBox(height: 120)),
+              ],
             ),
           ),
         ),
-        BlocBuilder<ExploreBloc, ExploreState>(
-          builder: (context, state) {
-            if (state is ExploreLoading) {
-              return SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (_, __) => const _ShimmerCard(),
-                  childCount: 4,
-                ),
-              );
-            }
-            if (state is ExploreLoaded) {
-              return SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final shop = state.shops[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: NearbyCard(
-                          shop: shop,
-                          onTap: () => context.push('${AppRouter.detail}/${shop.id}'),
-                          onWhatsAppTap: () => context.push('${AppRouter.detail}/${shop.id}'),
-                        ),
-                      );
-                    },
-                    childCount: state.shops.take(6).length,
-                  ),
-                ),
-              );
-            }
-            if (state is ExploreEmpty) {
-              return SliverToBoxAdapter(child: _buildEmptyState(state.message));
-            }
-            if (state is ExploreError) {
-              return SliverToBoxAdapter(child: _buildErrorState(state.message));
-            }
-            return const SliverToBoxAdapter(child: SizedBox.shrink());
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLocationHeader() {
-    return BlocBuilder<LocationBloc, LocationState>(
-      builder: (context, state) {
-        final locationText = state is LocationLoaded ? state.location.displayName : 'Mencari lokasi...';
-
-        return Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Mencari dekat:', style: AppTextStyles.bodySmall),
-                  const SizedBox(height: 2),
-                  GestureDetector(
-                    onTap: () => context.push(AppRouter.pickLocation),
-                    child: Row(
-                      children: [
-                        Text(locationText, style: AppTextStyles.headingSmall),
-                        const SizedBox(width: 4),
-                        const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textPrimary, size: 20),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.bgCard,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.notifications_none_rounded, color: AppColors.textSecondary, size: 22),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildFeaturedSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Featured Spots', style: AppTextStyles.headingMedium),
-        const SizedBox(height: 12),
-        BlocBuilder<ExploreBloc, ExploreState>(
-          builder: (context, state) {
-            if (state is ExploreLoaded) {
-              final featured = state.shops.where((s) => s.isFeatured).take(5).toList();
-              if (featured.isEmpty) {
-                return const SizedBox(
-                    height: 180,
-                    child: Center(
-                      child: Icon(Icons.coffee_outlined, size: 40, color: AppColors.textMuted),
-                    ));
-              }
-              return SizedBox(
-                height: 180,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: featured.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) => FeaturedCard(
-                    shop: featured[index],
-                    onTap: () => context.push('${AppRouter.detail}/${featured[index].id}'),
-                  ),
-                ),
-              );
-            }
-            return SizedBox(
-              height: 180,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: 3,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (_, __) => const _ShimmerFeatured(),
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSearchBar() {
-    return GestureDetector(
-      onTap: () => context.push(AppRouter.explore),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: AppColors.bgInput,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.search_rounded, color: AppColors.textMuted, size: 20),
-            const SizedBox(width: 10),
-            Text('Cari kedai atau vibe...', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textMuted)),
-          ],
-        ),
       ),
     );
   }
+}
 
-  Widget _buildVibeCategories() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+class _Header extends StatelessWidget {
+  const _Header();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
       children: [
-        Text('Kategori Suasana', style: AppTextStyles.headingMedium),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: _vibes.map((vibe) {
-            return VibeChip(
-              emoji: vibe.$1,
-              label: vibe.$2,
-              onTap: () => context.push(
-                AppRouter.explore,
-                extra: {'vibe': vibe.$2.replaceAll('\n', ' ')},
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  // ─── Tab 1: Map ───────────────────────────────────────────────────────────
-
-  Widget _buildMapContent() {
-    return BlocBuilder<LocationBloc, LocationState>(
-      builder: (context, locationState) {
-        final center = locationState is LocationLoaded
-            ? LatLng(locationState.location.latitude, locationState.location.longitude)
-            : const LatLng(-6.2088, 106.8456);
-
-        return Stack(
-          children: [
-            FlutterMap(
-              options: MapOptions(initialCenter: center, initialZoom: 14),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => context.push(AppRouter.pickLocation),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.streetcoffee.app',
-                ),
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: center,
-                      width: 40,
-                      height: 40,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.bgDark, width: 3),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(0.4),
-                              blurRadius: 12,
-                              spreadRadius: 2,
-                            ),
-                          ],
+                Text('Kedai di sekitar',
+                    style: AppTextStyles.meta
+                        .copyWith(color: AppColors.textMuted)),
+                const SizedBox(height: 4),
+                BlocBuilder<LocationBloc, LocationState>(
+                  builder: (context, s) => Row(
+                    children: [
+                      const Icon(Icons.location_on_rounded,
+                          size: 16, color: AppColors.primary),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          s is LocationLoaded
+                              ? s.location.displayName
+                              : 'Mencari lokasi…',
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.cardTitle,
                         ),
-                        child: const Icon(Icons.coffee_rounded, color: AppColors.bgDark, size: 20),
                       ),
-                    ),
-                    ...() {
-                      final exploreState = context.read<ExploreBloc>().state;
-                      if (exploreState is ExploreLoaded) {
-                        return exploreState.shops
-                            .map((shop) => Marker(
-                                  point: LatLng(shop.latitude, shop.longitude),
-                                  width: 40,
-                                  height: 40,
-                                  child: GestureDetector(
-                                    onTap: () => context.push('${AppRouter.detail}/${shop.id}'),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: AppColors.bgCard,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: AppColors.primary, width: 2),
-                                      ),
-                                      child: const Icon(Icons.storefront_rounded, color: AppColors.primary, size: 18),
-                                    ),
-                                  ),
-                                ))
-                            .toList();
-                      }
-                      return <Marker>[];
-                    }(),
-                  ],
+                      const Icon(Icons.expand_more_rounded,
+                          size: 18, color: AppColors.textSecondary),
+                    ],
+                  ),
                 ),
               ],
             ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: _buildMapBottomSheet(),
+          ),
+        ),
+        BlocBuilder<AuthBloc, AuthState>(
+          builder: (context, s) => GestureDetector(
+            onTap: () => context.go(AppRouter.profile),
+            child: UserAvatar(
+              url: s is AuthAuthenticated ? s.user.photoUrl : null,
+              name: s is AuthAuthenticated ? s.user.displayName : '?',
+              size: 40,
+              radius: 12,
+              borderColor: AppColors.primary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _VibeRow extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        children: [
+          VibePill(
+            emoji: '✨',
+            label: 'Semua',
+            active: true,
+            onTap: () => context.go(AppRouter.explore),
+          ),
+          for (final (e, l) in homeVibes) ...[
+            const SizedBox(width: 8),
+            VibePill(
+              emoji: e,
+              label: l,
+              onTap: () => context.go(AppRouter.explore, extra: {'vibe': l}),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FeaturedSection extends StatelessWidget {
+  const _FeaturedSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = context.watch<LocationBloc>().state;
+    final explore = context.watch<ExploreBloc>().state;
+    // Errors / empty / no location are explained once, by the nearby list.
+    if (loc is LocationError ||
+        explore is ExploreError ||
+        explore is ExploreEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: SectionHeader(
+              title: 'Featured Spots',
+              action: 'Lihat semua',
+              onAction: () => context.go(AppRouter.explore),
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 260,
+            child: BlocBuilder<ExploreBloc, ExploreState>(
+              builder: (context, state) {
+                if (state is! ExploreLoaded) {
+                  return ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: 3,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (_, __) =>
+                        const Skeleton(width: 220, height: 260, radius: 20),
+                  );
+                }
+                final featured =
+                    state.shops.where((s) => s.isFeatured).take(6).toList();
+                final list = featured.isEmpty
+                    ? (state.shops.toList()
+                          ..sort((a, b) => b.rating.compareTo(a.rating)))
+                        .take(5)
+                        .toList()
+                    : featured;
+                return ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: list.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, i) => FeaturedCard(
+                    shop: list[i],
+                    onTap: () =>
+                        context.push('${AppRouter.detail}/${list[i].id}'),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Lagi rame di-Drop 🔥" — trending drops of the week.
+class _DropsSection extends StatelessWidget {
+  const _DropsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Drop>>(
+      stream: sl<SocialRepository>().watchFeed(FeedTab.trending),
+      builder: (context, snap) {
+        final drops = (snap.data ?? const <Drop>[]).take(8).toList();
+        if (drops.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: SectionHeader(
+                  title: 'Lagi rame di-Drop 🔥',
+                  action: 'Buka Feed',
+                  onAction: () => context.go(AppRouter.feed),
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 190,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: drops.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (_, i) => _DropTile(drop: drops[i]),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
   }
+}
 
-  Widget _buildMapBottomSheet() {
-    return BlocBuilder<ExploreBloc, ExploreState>(
-      builder: (context, state) {
-        if (state is! ExploreLoaded || state.shops.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        final shop = state.shops.first;
-        return Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.bgCard,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 20,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: Row(
+class _DropTile extends StatelessWidget {
+  final Drop drop;
+  const _DropTile({required this.drop});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.go(AppRouter.feed),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          width: 140,
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  shop.imageUrl,
-                  width: 72,
-                  height: 72,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 72,
-                    height: 72,
-                    color: AppColors.bgCardAlt,
-                    child: const Icon(Icons.coffee, color: AppColors.textMuted),
+              NetImage(drop.coverUrl),
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: [0.45, 1],
+                    colors: [Colors.transparent, Color(0xE60E0E0E)],
                   ),
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
+              Padding(
+                padding: const EdgeInsets.all(8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(shop.name, style: AppTextStyles.headingSmall),
-                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: UserAvatar(
+                          url: drop.userPhotoUrl,
+                          name: drop.userHandle,
+                          size: 24,
+                          radius: 7),
+                    ),
+                    const Spacer(),
+                    Text(drop.shopName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.cardTitle.copyWith(fontSize: 13)),
+                    const SizedBox(height: 3),
                     Row(
                       children: [
-                        const Icon(Icons.star_rounded, color: AppColors.star, size: 14),
-                        const SizedBox(width: 2),
-                        Text(shop.rating.toStringAsFixed(1), style: AppTextStyles.bodySmall),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(shop.distanceText, style: AppTextStyles.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis,)),
+                        const Icon(Icons.coffee_rounded,
+                            size: 11, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text(Fmt.compact(drop.cheersCount),
+                            style: AppTextStyles.meta.copyWith(
+                                fontSize: 11,
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w600)),
+                        Flexible(
+                          child: Text(' · ${drop.userHandle}',
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.meta.copyWith(fontSize: 10)),
+                        ),
                       ],
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 6,
-                      children: shop.categories
-                          .take(3)
-                          .map((c) => Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppColors.bgCardAlt,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(c, style: AppTextStyles.caption),
-                              ))
-                          .toList(),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () => context.push('${AppRouter.detail}/${shop.id}'),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text('Detail', style: AppTextStyles.button),
-                ),
-              ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Hidden for members; guests see it too (tapping asks them to log in).
+class _PassBanner extends StatelessWidget {
+  const _PassBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthBloc>().state;
+    final uid = auth is AuthAuthenticated ? auth.user.uid : null;
+    return StreamBuilder<Membership>(
+      stream: uid == null
+          ? Stream.value(Membership.none)
+          : sl<CommerceRepository>().watchMembership(uid),
+      builder: (context, snap) {
+        if (snap.data?.active == true) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: GestureDetector(
+            onTap: () => context.push(AppRouter.streetPass),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: const LinearGradient(
+                    colors: [AppColors.primary, Color(0xFFC8F56A)]),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.onPrimary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.confirmation_number_rounded,
+                        color: AppColors.primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Street Pass: promo di kedai partner',
+                            style: AppTextStyles.cardTitle.copyWith(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.onPrimary)),
+                        Text('Coba gratis 7 hari',
+                            style: AppTextStyles.meta.copyWith(
+                                color: const Color(0xB30E0E0E),
+                                fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right_rounded,
+                      color: AppColors.onPrimary),
+                ],
+              ),
+            ),
           ),
         );
       },
     );
   }
-
-  // ─── Tab 2: Profile ───────────────────────────────────────────────────────
-
-  Widget _buildProfileContent() {
-    return SafeArea(
-      child: BlocBuilder<AuthBloc, AuthState>(
-        builder: (context, state) {
-          if (state is AuthAuthenticated) {
-            return _buildLoggedInProfile(state);
-          }
-          return _buildGuestProfile();
-        },
-      ),
-    );
-  }
-
-  Widget _buildLoggedInProfile(AuthAuthenticated state) {
-    final user = state.user;
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        const SizedBox(height: 20),
-        // Avatar
-        Center(
-          child: Column(
-            children: [
-              CircleAvatar(
-                radius: 44,
-                backgroundImage: user.photoUrl != null ? NetworkImage(user.photoUrl!) : null,
-                backgroundColor: AppColors.bgCard,
-                child: user.photoUrl == null
-                    ? Text(
-                        user.displayName[0].toUpperCase(),
-                        style: AppTextStyles.headingLarge,
-                      )
-                    : null,
-              ),
-              const SizedBox(height: 14),
-              Text(user.displayName, style: AppTextStyles.headingMedium),
-              const SizedBox(height: 4),
-              Text(user.email, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary)),
-              if (user.isAdmin) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.primary),
-                  ),
-                  child: Text('⚡ Admin', style: AppTextStyles.caption.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700)),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 32),
-
-        // Admin section
-        if (user.isAdmin) ...[
-          _sectionLabel('Admin'),
-          _menuTile(
-            icon: Icons.add_business_rounded,
-            label: 'Tambah Kedai Baru',
-            onTap: () => context.push(AppRouter.adminAddShop),
-          ),
-          const SizedBox(height: 8),
-          _menuTile(
-            icon: Icons.store_rounded,
-            label: 'Kelola Semua Kedai',
-            onTap: () => context.push(AppRouter.explore),
-          ),
-          const SizedBox(height: 20),
-        ],
-
-        // General section
-        _sectionLabel('Umum'),
-        _menuTile(
-          icon: Icons.location_on_rounded,
-          label: 'Ubah Lokasi',
-          onTap: () => context.push(AppRouter.pickLocation),
-        ),
-        const SizedBox(height: 32),
-
-        // Logout
-        GestureDetector(
-          onTap: () => context.read<AuthBloc>().add(AuthSignOut()),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            decoration: BoxDecoration(
-              color: AppColors.closed.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.closed.withOpacity(0.3)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.logout_rounded, color: AppColors.closed, size: 20),
-                const SizedBox(width: 8),
-                Text('Logout', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.closed, fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGuestProfile() {
-    return Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              color: AppColors.bgCard,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.person_outline_rounded, size: 44, color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 20),
-          Text('Belum Login', style: AppTextStyles.headingMedium),
-          const SizedBox(height: 8),
-          Text(
-            'Login untuk kasih review, order, dan akses fitur lengkap',
-            style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          GestureDetector(
-            onTap: () => context.push(AppRouter.login),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('G', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF4285F4))),
-                  const SizedBox(width: 10),
-                  Text('Login dengan Google', style: AppTextStyles.button),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sectionLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(label, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textMuted, fontWeight: FontWeight.w600, letterSpacing: 1.2)),
-    );
-  }
-
-  Widget _menuTile({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: AppColors.bgCard,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: AppColors.textSecondary, size: 20),
-            const SizedBox(width: 14),
-            Expanded(child: Text(label, style: AppTextStyles.bodyMedium)),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ─── State widgets ────────────────────────────────────────────────────────
-
-  Widget _buildEmptyState(String message) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(48),
-        child: Column(
-          children: [
-            const Icon(Icons.coffee_outlined, size: 64, color: AppColors.textMuted),
-            const SizedBox(height: 16),
-            Text(message, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorState(String message) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(48),
-        child: Column(
-          children: [
-            const Icon(Icons.wifi_off_rounded, size: 64, color: AppColors.textMuted),
-            const SizedBox(height: 16),
-            Text(message, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary)),
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: _loadData,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text('Coba Lagi', style: AppTextStyles.button),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
-class _ShimmerCard extends StatelessWidget {
-  const _ShimmerCard();
+class _NearbyList extends StatelessWidget {
+  const _NearbyList();
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-      child: Container(
-        height: 100,
-        decoration: BoxDecoration(
-          color: AppColors.bgCard,
-          borderRadius: BorderRadius.circular(16),
-        ),
-      ),
-    );
-  }
-}
-
-class _ShimmerFeatured extends StatelessWidget {
-  const _ShimmerFeatured();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 200,
-      decoration: BoxDecoration(
-        color: AppColors.bgCard,
-        borderRadius: BorderRadius.circular(16),
-      ),
+    final loc = context.watch<LocationBloc>().state;
+    if (loc is LocationError) {
+      return SliverToBoxAdapter(child: LocationProblemView(error: loc));
+    }
+    return BlocBuilder<ExploreBloc, ExploreState>(
+      builder: (context, state) {
+        if (state is ExploreLoading || state is ExploreInitial) {
+          return SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverList.separated(
+              itemCount: 3,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (_, __) => const Skeleton(height: 116, radius: 16),
+            ),
+          );
+        }
+        if (state is ExploreEmpty) {
+          return SliverToBoxAdapter(
+            child: StateView(
+              icon: Icons.coffee_outlined,
+              title: 'Belum ada kedai',
+              message: state.message,
+              actionLabel: 'Ganti lokasi',
+              actionIcon: Icons.location_on_rounded,
+              onAction: () => context.push(AppRouter.pickLocation),
+            ),
+          );
+        }
+        if (state is ExploreError) {
+          return SliverToBoxAdapter(
+            child: StateView(
+              icon: Icons.wifi_off_rounded,
+              title: 'Kedai gagal dimuat',
+              message: state.message,
+              danger: true,
+              actionLabel: 'Coba lagi',
+              actionIcon: Icons.refresh_rounded,
+              onAction: () {
+                final loc = context.read<LocationBloc>().state;
+                if (loc is LocationLoaded) {
+                  context
+                      .read<ExploreBloc>()
+                      .add(ExploreLoadShops(loc.location));
+                }
+              },
+            ),
+          );
+        }
+        final shops = (state as ExploreLoaded).shops.take(8).toList();
+        return SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          sliver: SliverList.separated(
+            itemCount: shops.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, i) => ShopCard(
+              shop: shops[i],
+              onTap: () => context.push('${AppRouter.detail}/${shops[i].id}'),
+              onWhatsApp: shops[i].canOrderViaWa
+                  ? () => showWaConfirmSheet(context, shop: shops[i])
+                  : null,
+            ),
+          ),
+        );
+      },
     );
   }
 }

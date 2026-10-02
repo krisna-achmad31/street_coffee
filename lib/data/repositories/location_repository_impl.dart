@@ -15,8 +15,8 @@ class LocationRepositoryImpl implements LocationRepository {
       final location = await localDataSource.getCurrentLocation();
       await localDataSource.saveLastLocation(location);
       return Right(location);
-    } on Exception catch (e) {
-      return Left(LocationFailure(e.toString()));
+    } catch (e) {
+      return Left(e is Failure ? e : const LocationFailure());
     }
   }
 
@@ -27,8 +27,8 @@ class LocationRepositoryImpl implements LocationRepository {
     try {
       final location = await localDataSource.getLocationFromAddress(address);
       return Right(location);
-    } on Exception catch (e) {
-      return Left(LocationFailure(e.toString()));
+    } catch (e) {
+      return Left(e is Failure ? e : const LocationFailure());
     }
   }
 
@@ -40,8 +40,8 @@ class LocationRepositoryImpl implements LocationRepository {
     try {
       final address = await localDataSource.getAddressFromCoordinates(lat, lng);
       return Right(address);
-    } on Exception catch (e) {
-      return Left(LocationFailure(e.toString()));
+    } catch (e) {
+      return Left(e is Failure ? e : const LocationFailure());
     }
   }
 
@@ -50,8 +50,8 @@ class LocationRepositoryImpl implements LocationRepository {
     try {
       await localDataSource.saveLastLocation(location);
       return const Right(null);
-    } on Exception catch (e) {
-      return Left(CacheFailure(e.toString()));
+    } catch (_) {
+      return const Left(CacheFailure());
     }
   }
 
@@ -60,8 +60,8 @@ class LocationRepositoryImpl implements LocationRepository {
     try {
       final location = await localDataSource.getLastSavedLocation();
       return Right(location);
-    } on Exception catch (e) {
-      return Left(CacheFailure(e.toString()));
+    } catch (_) {
+      return const Left(CacheFailure());
     }
   }
 }

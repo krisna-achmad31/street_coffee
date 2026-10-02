@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../domain/entities/comment.dart';
+import 'json_reader.dart';
 
 class CommentModel extends Comment {
   const CommentModel({
@@ -14,16 +15,23 @@ class CommentModel extends Comment {
   });
 
   factory CommentModel.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
+    final d = Json.of(doc.data());
+    final rating = d.dblOrNull('rating');
     return CommentModel(
       id: doc.id,
-      shopId: d['shopId'] ?? '',
-      userId: d['userId'] ?? '',
-      userName: d['userName'] ?? 'Anonim',
-      userPhotoUrl: d['userPhotoUrl'],
-      text: d['text'] ?? '',
-      rating: (d['rating'] as num?)?.toDouble(),
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      shopId: d.str('shopId'),
+      userId: d.str('userId'),
+      userName: d.strOrNull('userName') ?? 'Anonim',
+      userPhotoUrl: _photo(d.raw['userPhotoUrl']),
+      text: d.str('text').trim(),
+      rating: rating?.clamp(1, 5).toDouble(),
+      // Pending serverTimestamp() reads back as null on the writer's device.
+      createdAt: d.date('createdAt') ?? DateTime.now(),
     );
+  }
+
+  static String? _photo(Object? v) {
+    final u = Json.url(v);
+    return u.isEmpty ? null : u;
   }
 }

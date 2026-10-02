@@ -33,8 +33,8 @@ class CommentRepositoryImpl implements CommentRepository {
         rating: rating,
       );
       return const Right(null);
-    } on Exception catch (e) {
-      return Left(ServerFailure(e.toString()));
+    } catch (e) {
+      return Left(Failure.from(e, 'Gagal menyimpan review. Coba lagi.'));
     }
   }
 
@@ -47,8 +47,8 @@ class CommentRepositoryImpl implements CommentRepository {
       await remoteDataSource.deleteComment(
           shopId: shopId, commentId: commentId);
       return const Right(null);
-    } on Exception catch (e) {
-      return Left(ServerFailure(e.toString()));
+    } catch (e) {
+      return Left(Failure.from(e, 'Gagal menyimpan review. Coba lagi.'));
     }
   }
 }
