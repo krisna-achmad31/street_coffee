@@ -261,9 +261,8 @@ Harga usulan: **Rp19.000/bulan** atau **Rp149.000/tahun**, trial 7 hari.
 
 ## 10. Landing Page (web)
 
-> **File:** [`docs/landing/index.html`](docs/landing/index.html) — mockup HTML statis, satu file, memakai screenshot asli dari `docs/screenshots/`.
-> Preview: [`desktop`](docs/landing/preview_desktop.png) · [`mobile 360`](docs/landing/preview_mobile.png).
-> Belum ada frame di `design/street_coffee.pen`: sesi pembuatan tidak punya akses Pencil MCP. Saat dipindah ke `.pen`, pakai frame **1280** (desktop) dan **360** (mobile) dengan urutan section di bawah.
+> **Di `.pen`:** frame **31 · Landing Page (Desktop)** (1280, x 0 / y 10000) dan **32 · Landing Page (Mobile)** (390, x 1440 / y 10000). Mockup HP memakai screenshot asli di [`design/screens/`](design/screens/) (diperkecil ke 540 px).
+> **Versi web:** [`docs/landing/index.html`](docs/landing/index.html) — HTML statis dengan isi yang sama. Preview: [`desktop`](docs/landing/preview_desktop.png) · [`mobile 360`](docs/landing/preview_mobile.png).
 
 Token yang dipakai sama dengan aplikasi (§2): latar `#0E0E0E`, satu aksen lime `#9FE444`, Syne 800 untuk headline, Inter untuk isi, Space Mono uppercase untuk label/eyebrow, kartu `#181818` radius 20.
 
