@@ -256,3 +256,26 @@ Harga usulan: **Rp19.000/bulan** atau **Rp149.000/tahun**, trial 7 hari.
 - Tombol Google konsisten (putih); teks full Bahasa Indonesia.
 - Baru: Feed, Drop, Komentar, Share card, Profil Sosial, Passport, Badge, Notifikasi, Laporkan, Street Pass, Kedai Pro.
 - Sosial memakai bahasa visual sendiri (struk · stempel · paspor), bukan pola visual Instagram — lihat 2.4.
+
+---
+
+## 10. Landing Page (web)
+
+> **File:** [`docs/landing/index.html`](docs/landing/index.html) — mockup HTML statis, satu file, memakai screenshot asli dari `docs/screenshots/`.
+> Preview: [`desktop`](docs/landing/preview_desktop.png) · [`mobile 360`](docs/landing/preview_mobile.png).
+> Belum ada frame di `design/street_coffee.pen`: sesi pembuatan tidak punya akses Pencil MCP. Saat dipindah ke `.pen`, pakai frame **1280** (desktop) dan **360** (mobile) dengan urutan section di bawah.
+
+Token yang dipakai sama dengan aplikasi (§2): latar `#0E0E0E`, satu aksen lime `#9FE444`, Syne 800 untuk headline, Inter untuk isi, Space Mono uppercase untuk label/eyebrow, kartu `#181818` radius 20.
+
+| # | Section | Isi | Catatan desain |
+|---|---|---|---|
+| 1 | Nav sticky | Logo · Kenapa / Fitur / Street Pass / Untuk Kedai · CTA "Gabung waitlist" | Blur + border `divider`. Di ≤900 px link disembunyikan, CTA jadi "Gabung" |
+| 2 | Hero | Pill "Beta Jakarta Selatan · Android" · **"Temukan kopi di skenamu."** (kata *skenamu* lime) · lead · CTA primer "Coba versi beta" + sekunder "Punya kedai? Daftar gratis" · 3 angka (Rp5rb, 0, 1 tap) | Dua mockup HP (Home tegak, Explore miring 6°) + chip stempel "KEDAI KE-32". Glow radial lime di belakang |
+| 3 | Masalah | "Ngopi enak itu gampang. Nyarinya yang susah." · 3 kartu: jam buka tak tercatat · tidak terlihat online · order WA tercecer | Ikon emoji di kotak `surface-alt` 44 |
+| 4 | Fitur (zig-zag) | 01 Temukan (Explore) · 02 Pesan (Detail + struk mono berkode SC-XXXX) · 03 Drop (Feed) · 04 Koleksi (Passport) | Eyebrow mono lime bernomor; checklist ✓ lime |
+| 5 | Street Pass | "Langganannya balik modal dari 2 gelas." · plan Gratis vs **Street Pass** (gradien pass card §2.1) | Kalimat "fitur sosial gratis selamanya" wajib ada |
+| 6 | Kedai Pro | "Bikin kedaimu jadi tongkrongan berikutnya." · 4 langkah · tier Basic / **Pro** (border lime) / Pro+ | Catatan: dibayar via web (QRIS), bukan store |
+| 7 | Penutup | "Ngopi di mana malam ini?" (headline Home) · form email waitlist | Form mockup saja, belum terhubung backend |
+| 8 | Footer | © · atribusi "Peta © OpenStreetMap contributors" | Atribusi OSM wajib |
+
+**Responsif:** 1 kolom di ≤900 px; di ≤560 px gutter 16 px, judul section 30 px (kata panjang Syne seperti *Langganannya* tidak muat di 360 px pada ukuran lebih besar), tombol full-width. Diuji di 1280 dan 360 px tanpa scroll horizontal.

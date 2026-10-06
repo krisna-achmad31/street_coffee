@@ -7,6 +7,7 @@ Direktori kedai kopi skena + lapisan sosial (Drop, paspor, Cheers) + monetisasi
 
 - Desain: [`design/street_coffee.pen`](design/street_coffee.pen) (pen.dev) · spec: [`DESIGN.md`](DESIGN.md)
 - PRD & roadmap: dokumen "Street Coffee — PRD & Roadmap"
+- Pitch: [`docs/PITCH.md`](docs/PITCH.md) · landing page: [`docs/landing/index.html`](docs/landing/index.html)
 
 ## Arsitektur
 
@@ -113,3 +114,14 @@ firebase emulators:exec --only firestore "node --test functions/rules-test/"   #
 | `users/{uid}` | klien (profil); `stampsCount`, `dropsCount`, `passUntil` oleh Functions |
 | `promos` | owner kedai; `usage` oleh Functions |
 | `memberships`, `redemptions`, `revenue_share` | hanya Functions |
+
+## Test
+
+```bash
+flutter analyze
+flutter test        # 116 test, tanpa Firebase (repository in-memory di test/helpers)
+```
+
+- `test/presentation/blocs/` — Explore (filter, search, latest-wins), Location, Detail, Comment, Admin, Auth
+- `test/presentation/pages/` — Home, Explore, Detail, Feed, Profil, Pakai Promo, form Tambah/Edit Kedai
+- `test/flutter_test_config.dart` memuat font dengan lebar realistis (Roboto dari SDK + monospace sistem) di bawah nama google_fonts, supaya pengecekan overflow tidak palsu. Test tidak pernah mengunduh font.
