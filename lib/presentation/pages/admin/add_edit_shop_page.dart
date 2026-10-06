@@ -19,6 +19,7 @@ import '../../widgets/cards/shop_cards.dart';
 import '../../widgets/ui/buttons.dart';
 import '../../widgets/ui/chips.dart';
 import '../../widgets/ui/common.dart';
+import '../../widgets/ui/osm_map.dart';
 
 /// Screen 11 — Tambah / Edit Kedai (admin). Eight numbered sections with a
 /// progress counter; the CTA stays pinned at the bottom.
@@ -395,11 +396,7 @@ class _AddEditShopPageState extends State<AddEditShopPage> {
               onTap: (_, p) => setState(() => _pin = p),
             ),
             children: [
-              TileLayer(
-                urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-                subdomains: const ['a', 'b', 'c', 'd'],
-                userAgentPackageName: 'com.streetcoffee.app',
-              ),
+              osmTileLayer(),
               if (_pin != null)
                 MarkerLayer(markers: [
                   Marker(
@@ -417,6 +414,10 @@ class _AddEditShopPageState extends State<AddEditShopPage> {
                     ),
                   ),
                 ]),
+              const Align(
+                alignment: Alignment.bottomRight,
+                child: Padding(padding: EdgeInsets.all(6), child: OsmAttribution()),
+              ),
             ],
           ),
         ),

@@ -17,6 +17,7 @@ import '../../widgets/sheets/wa_confirm_sheet.dart';
 import '../../widgets/ui/chips.dart';
 import '../../widgets/ui/common.dart';
 import '../../widgets/ui/location_problem.dart';
+import '../../widgets/ui/osm_map.dart';
 import 'filter_sheet.dart';
 
 class ExplorePage extends StatefulWidget {
@@ -339,10 +340,14 @@ class _ExplorePageState extends State<ExplorePage> {
 
   Widget _buildMap(ExploreState state, List<CoffeeShop> shops) {
     final loc = context.watch<LocationBloc>().state;
-    final center = loc is LocationLoaded
+    final user = loc is LocationLoaded
         ? LatLng(loc.location.latitude, loc.location.longitude)
-        : const LatLng(-6.2441, 106.7991);
+        : null;
     final pinned = shops.where((s) => s.hasLocation).toList();
+    // Far from every shop (e.g. travelling): frame the shops, not an empty
+    // map around the user.
+    final nearUser = user != null && pinned.any((s) => (s.distanceKm ?? 1e9) <= 30);
+    final fitShops = pinned.isNotEmpty && !nearUser;
     // The previously tapped shop may have been filtered out since.
     final selected = pinned.contains(_selected)
         ? _selected
@@ -350,22 +355,28 @@ class _ExplorePageState extends State<ExplorePage> {
     return Stack(
       children: [
         FlutterMap(
+          // Re-frame when the result set changes (filters, new location).
+          key: ValueKey('$fitShops-${pinned.map((s) => s.id).join(',')}'),
           options: MapOptions(
-            initialCenter: center,
+            initialCenter: user ?? const LatLng(-6.2441, 106.7991),
             initialZoom: 15,
+            initialCameraFit: fitShops
+                ? CameraFit.coordinates(
+                    coordinates: [
+                      for (final s in pinned) LatLng(s.latitude, s.longitude)
+                    ],
+                    padding: const EdgeInsets.fromLTRB(56, 250, 56, 380),
+                    maxZoom: 16,
+                  )
+                : null,
             onTap: (_, __) => setState(() => _selected = null),
           ),
           children: [
-            TileLayer(
-              urlTemplate:
-                  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-              subdomains: const ['a', 'b', 'c', 'd'],
-              retinaMode: RetinaMode.isHighDensity(context),
-              userAgentPackageName: 'com.streetcoffee.app',
-            ),
+            osmTileLayer(),
             MarkerLayer(markers: [
+              if (user != null)
               Marker(
-                point: center,
+                point: user,
                 width: 56,
                 height: 56,
                 child: Container(
@@ -394,14 +405,14 @@ class _ExplorePageState extends State<ExplorePage> {
                   ),
                 ),
             ]),
-            const RichAttributionWidget(
-              alignment: AttributionAlignment.bottomLeft,
-              attributions: [
-                TextSourceAttribution('© OpenStreetMap contributors'),
-                TextSourceAttribution('© CARTO'),
-              ],
-            ),
           ],
+        ),
+        Positioned(
+          right: 16,
+          bottom: 96 +
+              MediaQuery.of(context).padding.bottom +
+              (selected != null ? 128 : 8),
+          child: const OsmAttribution(),
         ),
         SafeArea(
           bottom: false,
