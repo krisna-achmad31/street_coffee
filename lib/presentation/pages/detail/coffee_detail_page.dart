@@ -52,11 +52,21 @@ class _CoffeeDetailPageState extends State<CoffeeDetailPage> {
     super.initState();
     context.read<DetailBloc>().add(DetailLoadShop(widget.shopId));
     sl<CommerceRepository>().recordShopView(widget.shopId);
-    _presence = FirebaseDatabase.instance
-        .ref(FirebasePaths.shopPresence(widget.shopId))
-        .onValue
-        .listen((event) {
-      // Presence is optional: anything unreadable falls back to Firestore.
+    _watchPresence();
+  }
+
+  void _watchPresence() {
+    // Presence is optional: anything unreadable falls back to Firestore.
+    // No RTDB registered (widget tests) means no presence at all.
+    if (!sl.isRegistered<FirebaseDatabase>()) return;
+    final DatabaseReference ref;
+    try {
+      ref = sl<FirebaseDatabase>().ref(FirebasePaths.shopPresence(widget.shopId));
+    } catch (e) {
+      debugPrint('presence: $e');
+      return;
+    }
+    _presence = ref.onValue.listen((event) {
       final value = event.snapshot.value;
       final raw = value is Map ? value['isOpen'] : null;
       final isOpen = raw is bool ? raw : (raw is num ? raw != 0 : null);

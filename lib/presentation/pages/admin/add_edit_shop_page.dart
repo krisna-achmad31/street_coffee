@@ -292,18 +292,24 @@ class _AddEditShopPageState extends State<AddEditShopPage> {
             Expanded(
               child: Form(
                 key: _formKey,
-                child: ListView(
+                // Not a lazy ListView: fields scrolled off screen would be
+                // disposed and skipped by validate(), so an emptied name
+                // could be saved from the bottom of the form.
+                child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                  children: [
-                    _Section(1, 'Foto', done[0], child: _coverPicker()),
-                    _Section(2, 'Info kedai', done[1], child: _infoFields()),
-                    _Section(3, 'Lokasi', done[2], child: _mapPicker()),
-                    _Section(4, 'Kontak & harga', done[3], child: _contactFields()),
-                    _Section(5, 'Jam & status', done[4], child: _hoursFields()),
-                    _Section(6, 'Vibe & fasilitas', done[5], child: _vibeFields()),
-                    _Section(7, 'Menu favorit', done[6], child: _menuFields()),
-                    _Section(8, 'Sosmed', done[7], last: true, child: _socialFields()),
-                  ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _Section(1, 'Foto', done[0], child: _coverPicker()),
+                      _Section(2, 'Info kedai', done[1], child: _infoFields()),
+                      _Section(3, 'Lokasi', done[2], child: _mapPicker()),
+                      _Section(4, 'Kontak & harga', done[3], child: _contactFields()),
+                      _Section(5, 'Jam & status', done[4], child: _hoursFields()),
+                      _Section(6, 'Vibe & fasilitas', done[5], child: _vibeFields()),
+                      _Section(7, 'Menu favorit', done[6], child: _menuFields()),
+                      _Section(8, 'Sosmed', done[7], last: true, child: _socialFields()),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -612,25 +618,31 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Column(children: [
-          Container(
-            width: 26,
-            height: 26,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: done ? AppColors.primary : AppColors.surface,
-              shape: BoxShape.circle,
-              border: Border.all(color: done ? AppColors.primary : AppColors.divider),
-            ),
-            child: done
-                ? const Icon(Icons.check_rounded, size: 15, color: AppColors.onPrimary)
-                : MonoText('$number', size: 11, weight: FontWeight.w700),
+    // The rail is positioned against the body's height instead of measured
+    // with IntrinsicHeight, which threw on the menu's shrink-wrapped
+    // ReorderableListView and blanked section 7.
+    return Stack(children: [
+      if (!last)
+        Positioned(
+          left: 12.5,
+          top: 30,
+          bottom: 4,
+          child: Container(width: 1, color: AppColors.divider),
+        ),
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: done ? AppColors.primary : AppColors.surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: done ? AppColors.primary : AppColors.divider),
           ),
-          if (!last)
-            Expanded(child: Container(width: 1, color: AppColors.divider, margin: const EdgeInsets.symmetric(vertical: 4))),
-        ]),
+          child: done
+              ? const Icon(Icons.check_rounded, size: 15, color: AppColors.onPrimary)
+              : MonoText('$number', size: 11, weight: FontWeight.w700),
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Padding(
@@ -645,7 +657,7 @@ class _Section extends StatelessWidget {
           ),
         ),
       ]),
-    );
+    ]);
   }
 }
 
