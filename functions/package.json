@@ -7,7 +7,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "tsc && node --test lib/",
+    "test": "tsc && node --test lib/*.test.js",
     "deploy": "firebase deploy --only functions"
   },
   "dependencies": {
