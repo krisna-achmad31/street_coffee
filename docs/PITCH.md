@@ -5,7 +5,7 @@
 
 Platform: Flutter (Android dulu, iOS menyusul) · Firebase · OpenStreetMap
 Status: **MVP v2 jalan di perangkat Android**, 116 test otomatis lulus, beta tertutup Jakarta Selatan direncanakan.
-Landing page: [`docs/landing/index.html`](landing/index.html)
+Landing page: https://street-coffee.web.app ([`web/index.html`](../web/index.html))
 
 ---
 

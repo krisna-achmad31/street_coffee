@@ -262,7 +262,7 @@ Harga usulan: **Rp19.000/bulan** atau **Rp149.000/tahun**, trial 7 hari.
 ## 10. Landing Page (web)
 
 > **Di `.pen`:** frame **31 · Landing Page (Desktop)** (1280, x 0 / y 10000) dan **32 · Landing Page (Mobile)** (390, x 1440 / y 10000). Mockup HP memakai screenshot asli di [`design/screens/`](design/screens/) (diperkecil ke 540 px).
-> **Versi web:** [`docs/landing/index.html`](docs/landing/index.html) — HTML statis dengan isi yang sama. Preview: [`desktop`](docs/landing/preview_desktop.png) · [`mobile 360`](docs/landing/preview_mobile.png).
+> **Versi web (live):** https://street-coffee.web.app — sumber [`web/index.html`](web/index.html), di-deploy ke Firebase Hosting. Form waitlist belum ada (diganti "Segera hadir") sampai ada tempat menyimpan email. Preview: [`desktop`](docs/landing/preview_desktop.png) · [`mobile 360`](docs/landing/preview_mobile.png).
 
 Token yang dipakai sama dengan aplikasi (§2): latar `#0E0E0E`, satu aksen lime `#9FE444`, Syne 800 untuk headline, Inter untuk isi, Space Mono uppercase untuk label/eyebrow, kartu `#181818` radius 20.
 
@@ -274,7 +274,7 @@ Token yang dipakai sama dengan aplikasi (§2): latar `#0E0E0E`, satu aksen lime 
 | 4 | Fitur (zig-zag) | 01 Temukan (Explore) · 02 Pesan (Detail + struk mono berkode SC-XXXX) · 03 Drop (Feed) · 04 Koleksi (Passport) | Eyebrow mono lime bernomor; checklist ✓ lime |
 | 5 | Street Pass | "Langganannya balik modal dari 2 gelas." · plan Gratis vs **Street Pass** (gradien pass card §2.1) | Kalimat "fitur sosial gratis selamanya" wajib ada |
 | 6 | Kedai Pro | "Bikin kedaimu jadi tongkrongan berikutnya." · 4 langkah · tier Basic / **Pro** (border lime) / Pro+ | Catatan: dibayar via web (QRIS), bukan store |
-| 7 | Penutup | "Ngopi di mana malam ini?" (headline Home) · form email waitlist | Form mockup saja, belum terhubung backend |
+| 7 | Penutup | "Ngopi di mana malam ini?" (headline Home) · pill "Segera hadir di Google Play" | Di `.pen` masih ada form email; versi live sengaja tanpa form sampai waitlist punya backend |
 | 8 | Footer | © · atribusi "Peta © OpenStreetMap contributors" | Atribusi OSM wajib |
 
 **Responsif:** 1 kolom di ≤900 px; di ≤560 px gutter 16 px, judul section 30 px (kata panjang Syne seperti *Langganannya* tidak muat di 360 px pada ukuran lebih besar), tombol full-width. Diuji di 1280 dan 360 px tanpa scroll horizontal.

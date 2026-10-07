@@ -7,7 +7,7 @@ Direktori kedai kopi skena + lapisan sosial (Drop, paspor, Cheers) + monetisasi
 
 - Desain: [`design/street_coffee.pen`](design/street_coffee.pen) (pen.dev) · spec: [`DESIGN.md`](DESIGN.md)
 - PRD & roadmap: dokumen "Street Coffee — PRD & Roadmap"
-- Pitch: [`docs/PITCH.md`](docs/PITCH.md) · landing page: [`docs/landing/index.html`](docs/landing/index.html)
+- Pitch: [`docs/PITCH.md`](docs/PITCH.md) · landing page: https://street-coffee.web.app (sumber: [`web/`](web/), `firebase deploy --only hosting`)
 
 ## Arsitektur
 
